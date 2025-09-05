@@ -13,8 +13,9 @@ MCP (Model Context Protocol) сервер для релевантного пош
 ## MVP v.0.1 Features ✅
 
 - ✅ MCP сервер з 4 інструментами (qa.search, qa.list_features, qa.docs_by_feature, qa.health)
+- ✅ **НОВИНКА**: Офіційний Python MCP SDK (FastMCP) замість кастомної реалізації
 - ✅ JSON-RPC підтримка через HTTP та stdio
-- ✅ HTTP REST API
+- ✅ HTTP REST API (зворотна сумісність)
 - ✅ OpenAI integration (embeddings + LLM для feature tagging)
 - ✅ Qdrant векторна база даних
 - ✅ MySQL для метаданих
@@ -22,6 +23,18 @@ MCP (Model Context Protocol) сервер для релевантного пош
 - ✅ Docker containers та docker-compose
 - ✅ Автоматична класифікація документів за фічами
 - ✅ Базові тести
+
+## Міграція на FastMCP 2.12.2 v.0.2 ✅
+
+Проект було переписано з використанням актуальної версії [FastMCP 2.12.2](https://github.com/jlowin/fastmcp):
+
+- **FastMCP 2.12.2**: Використання найновішої версії "The fast, Pythonic way to build MCP servers"
+- **Новий MCP сервер**: `app/mcp_server.py` з використанням `FastMCP` та `Context`
+- **Context API**: Підтримка контекстного логування та розширених функцій MCP
+- **Новий лончер**: `mcp_server.py` для підключення до Cursor
+- **Зворотна сумісність**: старий HTTP сервер залишається доступним
+- **Спрощена архітектура**: менше коду, більша надійність
+- **Офіційна підтримка**: використання стандартного MCP протоколу
 
 ## Швидкий старт
 
@@ -63,13 +76,15 @@ python scripts/confluence_loader.py --spaces QA,ENG --labels checklist --once
   "mcpServers": {
     "qa-search": {
       "command": "python3",
-      "args": ["/path/to/your/project/qa_mcp/mcp_local.py"]
+      "args": ["/path/to/your/project/qa_mcp/mcp_server.py"]
     }
   }
 }
 ```
 
 **Важливо:** Замініть `/path/to/your/project/` на реальний шлях до вашого проекту.
+
+**Новий MCP сервер**: Проект було переписано з використанням офіційного Python MCP SDK (FastMCP). Новий сервер використовує `mcp_server.py` замість `mcp_local.py`.
 
 #### 4.2. Перезапуск Cursor
 
@@ -100,7 +115,7 @@ python scripts/confluence_loader.py --spaces QA,ENG --labels checklist --once
   "mcpServers": {
     "qa-search": {
       "command": "docker",
-      "args": ["exec", "-i", "qa_mcp_server", "python", "-m", "app.server", "--stdio"]
+      "args": ["exec", "-i", "qa_mcp_server", "python", "-m", "app.mcp_server"]
     }
   }
 }
@@ -126,11 +141,14 @@ python scripts/confluence_loader.py --spaces QA,ENG --labels checklist --once
 ### 5. Тестування MCP інструментів
 
 ```bash
-# Локальний тест MCP скрипта
-echo '{"jsonrpc": "2.0", "method": "tools/call", "params": {"name": "qa_health", "arguments": {}}, "id": 1}' | python3 mcp_local.py
+# Локальний тест нового MCP сервера
+echo '{"jsonrpc": "2.0", "method": "tools/call", "params": {"name": "qa_health", "arguments": {}}, "id": 1}' | python3 mcp_server.py
 
-# Тест HTTP API
-curl -X GET http://localhost:3000/health
+# HTTP сервер видалено - використовуйте тільки FastMCP
+# curl -X GET http://localhost:3000/health - НЕ ПРАЦЮЄ
+
+# Тест FastMCP сервера через Docker
+docker run --rm -i --network qa_mcp_qa_network qa_mcp-mcp-server python -m app.mcp_server
 ```
 
 ## MCP Інструменти
@@ -205,11 +223,13 @@ pip install -r app/requirements.txt
 # Запуск тестів
 pytest tests/
 
-# Локальний запуск MCP сервера (HTTP)
-python -m app.server
+# Запуск FastMCP 2.12.2 сервера (stdio режим)
+python3 mcp_server.py
 
-# Запуск в stdio режимі для MCP клієнтів
-python -m app.server --stdio
+# Альтернативно через модуль
+python -m app.mcp_server
+
+# HTTP сервер видалено - використовуйте тільки FastMCP
 ```
 
 ### Завантаження даних
@@ -337,11 +357,14 @@ python3 /path/to/your/project/qa_mcp/mcp_local.py
 
 #### Діагностика проблем MCP
 ```bash
-# Тест tools/list
-echo '{"jsonrpc": "2.0", "method": "tools/list", "params": {}, "id": 1}' | python3 mcp_local.py
+# Тест tools/list (новий MCP сервер)
+echo '{"jsonrpc": "2.0", "method": "tools/list", "params": {}, "id": 1}' | python3 mcp_server.py
 
-# Тест конкретного інструменту
-echo '{"jsonrpc": "2.0", "method": "tools/call", "params": {"name": "qa_health", "arguments": {}}, "id": 1}' | python3 mcp_local.py
+# Тест конкретного інструменту (новий MCP сервер)
+echo '{"jsonrpc": "2.0", "method": "tools/call", "params": {"name": "qa_health", "arguments": {}}, "id": 1}' | python3 mcp_server.py
+
+# Старий launcher видалено - тепер використовуйте тільки FastMCP
+# python3 mcp_local.py - ФАЙЛ ВИДАЛЕНО
 ```
 
 #### Типові помилки MCP
