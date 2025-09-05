@@ -1,0 +1,84 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: qa_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: qa
+      MYSQL_USER: qa
+      MYSQL_PASSWORD: qa
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts/mysql_init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+    networks:
+      - qa_network
+
+  qdrant:
+    image: qdrant/qdrant:v1.7.3
+    container_name: qa_qdrant
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - qa_network
+
+  mcp-server:
+    build: .
+    container_name: qa_mcp_server
+    environment:
+      # OpenAI Configuration
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      
+      # Database Configuration
+      MYSQL_DSN: mysql+pymysql://qa:qa@mysql:3306/qa
+      VECTORDB_URL: http://qdrant:6333
+      
+      # Application Configuration
+      APP_PORT: 3000
+      MAX_TOP_K: ${MAX_TOP_K:-50}
+      
+      # Chunking Configuration
+      CHUNK_SIZE: ${CHUNK_SIZE:-800}
+      CHUNK_OVERLAP: ${CHUNK_OVERLAP:-200}
+      
+      # Feature Tagging Configuration
+      FEATURE_SIM_THRESHOLD: ${FEATURE_SIM_THRESHOLD:-0.80}
+      
+      # Environment
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./app:/app/app:ro  # For development
+      - ./scripts:/app/scripts:ro  # For scripts
+    networks:
+      - qa_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  mysql_data:
+    driver: local
+  qdrant_data:
+    driver: local
+
+networks:
+  qa_network:
+    driver: bridge
