@@ -23,6 +23,7 @@ python-dotenv
 httpx
 click
 pydantic-settings
+atlassian-python-api
 
 # Testing
 pytest

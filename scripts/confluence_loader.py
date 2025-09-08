@@ -19,6 +19,7 @@ from app.data import MySQLRepository, VectorDBRepository
 from app.ai import OpenAIEmbedder, FeatureTagger
 from app.models import IngestionJob
 from confluence_mock import MockConfluenceAPI
+from confluence_real import RealConfluenceAPI
 
 
 class ChunkProcessor:
@@ -135,15 +136,15 @@ class ConfluenceLoader:
         if use_mock:
             self.confluence_api = MockConfluenceAPI()
         else:
-            # Real Confluence API would be initialized here
-            raise NotImplementedError("Real Confluence API not implemented yet")
+            self.confluence_api = RealConfluenceAPI()
     
     async def load_pages(
         self,
         space_keys: Optional[List[str]] = None,
         labels: Optional[List[str]] = None,
         updated_since: Optional[str] = None,
-        once: bool = False
+        once: bool = False,
+        page_ids: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """Load pages from Confluence."""
         click.echo(f"Starting Confluence import...")
@@ -163,11 +164,19 @@ class ConfluenceLoader:
                 since_date = datetime.fromisoformat(updated_since)
             
             # Fetch pages
-            pages = self.confluence_api.get_pages(
-                space_keys=space_keys,
-                labels=labels,
-                updated_since=since_date
-            )
+            if page_ids and not self.use_mock:
+                # Load specific pages with children for real API
+                pages = self.confluence_api.get_pages_by_ids(
+                    page_ids=page_ids,
+                    include_children=True
+                )
+            else:
+                # Use regular filtering method
+                pages = self.confluence_api.get_pages(
+                    space_keys=space_keys,
+                    labels=labels,
+                    updated_since=since_date
+                )
             
             click.echo(f"Found {len(pages)} pages to process")
             
@@ -313,7 +322,10 @@ class ConfluenceLoader:
 @click.option('--since', help='Load documents updated since this date (ISO format)')
 @click.option('--once', is_flag=True, help='Run once and exit (vs continuous sync)')
 @click.option('--use-real-api', is_flag=True, help='Use real Confluence API instead of mock')
-def main(spaces, labels, since, once, use_real_api):
+@click.option('--test-connection', is_flag=True, help='Test Confluence connection and exit')
+@click.option('--page-ids', help='Comma-separated list of specific page IDs to load with children')
+@click.option('--use-config-pages', is_flag=True, help='Use root pages from configuration')
+def main(spaces, labels, since, once, use_real_api, test_connection, page_ids, use_config_pages):
     """Load documents from Confluence into QA MCP system."""
     
     # Validate environment
@@ -325,8 +337,52 @@ def main(spaces, labels, since, once, use_real_api):
     space_keys = spaces.split(',') if spaces else None
     label_list = labels.split(',') if labels else None
     
+    # Determine page IDs to load
+    pages_to_load = None
+    if use_config_pages:
+        # Use root pages from configuration
+        pages_to_load = settings.confluence_root_pages.split(',') if settings.confluence_root_pages else None
+    elif page_ids:
+        pages_to_load = page_ids.split(',')
+    
+    # Auto-configure for real API if no specific parameters provided
+    if use_real_api:
+        if not pages_to_load and not space_keys:
+            if settings.confluence_root_pages and settings.confluence_space_key:
+                click.echo("Using configuration from .env file:")
+                click.echo(f"  Space: {settings.confluence_space_key}")
+                click.echo(f"  Root pages: {settings.confluence_root_pages}")
+                pages_to_load = settings.confluence_root_pages.split(',')
+            else:
+                click.echo("❌ Error: CONFLUENCE_SPACE_KEY and CONFLUENCE_ROOT_PAGES must be set in .env file")
+                return
+        
+        # Show current Confluence configuration
+        click.echo(f"Confluence URL: {settings.confluence_base_url}")
+        click.echo(f"Auth token: {'***set***' if settings.confluence_auth_token else 'NOT SET'}")
+    
     # Initialize loader
     loader = ConfluenceLoader(use_mock=not use_real_api)
+    
+    # Test connection if requested
+    if test_connection:
+        if not use_real_api:
+            click.echo("Connection test is only available with --use-real-api flag")
+            sys.exit(1)
+        
+        click.echo("Testing Confluence connection...")
+        result = loader.confluence_api.test_connection()
+        
+        if result["success"]:
+            click.echo(f"✓ Connection successful!")
+            click.echo(f"  User: {result['user']}")
+            click.echo(f"  Accessible spaces: {result['spaces_count']}")
+            if result['spaces']:
+                click.echo(f"  Spaces: {', '.join(result['spaces'])}")
+            sys.exit(0)
+        else:
+            click.echo(f"✗ Connection failed: {result['error']}")
+            sys.exit(1)
     
     try:
         # Run the loading process
@@ -334,7 +390,8 @@ def main(spaces, labels, since, once, use_real_api):
             space_keys=space_keys,
             labels=label_list,
             updated_since=since,
-            once=once
+            once=once,
+            page_ids=pages_to_load
         ))
         
         if result["success"]:

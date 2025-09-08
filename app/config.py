@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     # Confluence Configuration
     confluence_base_url: Optional[str] = None
     confluence_auth_token: Optional[str] = None
+    confluence_space_key: Optional[str] = None
+    confluence_root_pages: Optional[str] = None
     
     # Database Configuration
     mysql_dsn: str = "mysql+pymysql://qa:qa@localhost:3306/qa"

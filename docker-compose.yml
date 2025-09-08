@@ -20,7 +20,7 @@ services:
       - qa_network
 
   qdrant:
-    image: qdrant/qdrant:v1.7.3
+    image: qdrant/qdrant:v1.15.1
     container_name: qa_qdrant
     ports:
       - "6333:6333"
@@ -32,11 +32,19 @@ services:
   mcp-server:
     build: .
     container_name: qa_mcp_server
+    env_file:
+      - .env
     environment:
       # OpenAI Configuration
       OPENAI_API_KEY: ${OPENAI_API_KEY}
-      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
       OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      
+      # Confluence Configuration
+      CONFLUENCE_BASE_URL: ${CONFLUENCE_BASE_URL}
+      CONFLUENCE_AUTH_TOKEN: ${CONFLUENCE_AUTH_TOKEN}
+      CONFLUENCE_SPACE_KEY: ${CONFLUENCE_SPACE_KEY:-QMT}
+      CONFLUENCE_ROOT_PAGES: ${CONFLUENCE_ROOT_PAGES}
       
       # Database Configuration
       MYSQL_DSN: mysql+pymysql://qa:qa@mysql:3306/qa
