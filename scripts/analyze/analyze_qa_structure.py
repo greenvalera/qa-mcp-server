@@ -10,10 +10,10 @@ from dataclasses import dataclass
 import click
 
 # Add app to Python path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from app.config import settings
-from confluence_real import RealConfluenceAPI
+from scripts.confluence.confluence_real import RealConfluenceAPI
 
 
 @dataclass

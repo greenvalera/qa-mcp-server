@@ -34,7 +34,7 @@ nano .env
 ### 2. Завантаження даних
 ```bash
 # Автоматично використає конфігурацію з .env
-./scripts/load_confluence_data.sh
+./scripts/confluence/load_confluence_data.sh
 ```
 
 ### 3. Тестування підключення
@@ -44,7 +44,7 @@ docker run --rm --network qa_mcp_qa_network --env-file .env \
   -e MYSQL_DSN=mysql+pymysql://qa:qa@qa_mysql:3306/qa \
   -e VECTORDB_URL=http://qa_qdrant:6333 \
   -v $(pwd)/scripts:/app/scripts \
-  qa_mcp_loader python scripts/confluence_loader.py --use-real-api --test-connection
+  qa_mcp_loader python scripts/confluence/unified_loader.py --use-real-api --test-connection
 ```
 
 ## 📋 Виправлені проблеми

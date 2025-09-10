@@ -21,7 +21,7 @@ echo "✅ Змінні середовища встановлені"
 # Крок 1: Чиста міграція БД
 echo ""
 echo "📋 Крок 1: Міграція БД"
-python3 scripts/qa_migration.py --full-migration
+python3 -c "from app.data.qa_repository import QARepository; QARepository().create_tables()"
 
 # Крок 2: Тест підключень
 echo ""
@@ -36,12 +36,12 @@ python3 scripts/confluence/unified_loader.py --use-real-api --use-config
 # Крок 4: Тест нової системи
 echo ""
 echo "📋 Крок 4: Тестування системи"
-python3 scripts/test_qa_mcp.py --output qa_test_results.json
+python3 tests/test_mcp_client.py
 
 echo ""
 echo "🎉 Чистий QA setup завершено!"
 echo ""
 echo "📊 Доступні команди:"
-echo "  python3 app/qa_mcp_server.py  # Запуск QA MCP сервера"
-echo "  python3 scripts/qa_loader.py --help  # Завантаження даних"
-echo "  python3 scripts/qa_migration.py --help  # Управління БД"
+echo "  python3 app/mcp_server.py  # Запуск QA MCP сервера"
+echo "  python3 scripts/confluence/unified_loader.py --help  # Завантаження даних"
+echo "  python3 tests/test_mcp_client.py  # Тестування системи"

@@ -38,7 +38,7 @@ docker compose ps
 echo "✅ Configuration reload completed!"
 echo ""
 echo "🚀 To load data from Confluence with new configuration:"
-echo "   docker compose exec mcp-server python scripts/confluence_loader.py --use-real-api --use-config-pages --once"
+echo "   docker compose exec mcp-server python scripts/confluence/unified_loader.py --use-real-api --use-config --once"
 echo ""
 echo "🧪 To test MCP server:"
 echo "   Use the MCP tools in your IDE or run test commands"

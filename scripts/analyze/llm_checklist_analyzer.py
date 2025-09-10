@@ -10,7 +10,7 @@ import click
 from openai import OpenAI
 
 # Add app to Python path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from app.config import settings
 
