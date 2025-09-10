@@ -1,6 +1,6 @@
-"""AI modules for embeddings and feature tagging."""
+"""AI modules for QA content analysis."""
 
 from .embedder import OpenAIEmbedder
-from .feature_tagger import FeatureTagger
+from .qa_analyzer import QAContentAnalyzer
 
-__all__ = ["OpenAIEmbedder", "FeatureTagger"]
+__all__ = ["OpenAIEmbedder", "QAContentAnalyzer"]

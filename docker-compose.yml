@@ -50,7 +50,8 @@ services:
       MYSQL_DSN: mysql+pymysql://qa:qa@mysql:3306/qa
       VECTORDB_URL: http://qdrant:6333
       
-      # Application Configuration (APP_PORT not needed for FastMCP stdio)
+      # Application Configuration
+      APP_PORT: 3000
       MAX_TOP_K: ${MAX_TOP_K:-50}
       
       # Chunking Configuration
@@ -67,14 +68,15 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_started
-    # No ports needed - FastMCP uses stdio transport
+    ports:
+      - "3000:3000"
     volumes:
       - ./app:/app/app:ro  # For development
       - ./scripts:/app/scripts:ro  # For scripts
     networks:
       - qa_network
     healthcheck:
-      test: ["CMD", "python", "-c", "import app.mcp_server; print('FastMCP server healthy')"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       timeout: 10s
       retries: 5
       start_period: 30s

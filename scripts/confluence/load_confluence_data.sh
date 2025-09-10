@@ -27,9 +27,9 @@ if [ -z "$CONFLUENCE_BASE_URL" ] || [ -z "$CONFLUENCE_AUTH_TOKEN" ]; then
     exit 1
 fi
 
-# Run the confluence loader
-echo "🚀 Starting data load..."
-docker compose exec mcp-server python scripts/confluence_loader.py --use-real-api --use-config-pages --once
+# Run the unified confluence loader
+echo "🚀 Starting unified data load..."
+docker compose exec mcp-server python scripts/confluence/unified_loader.py --use-real-api --use-config --once
 
 echo "✅ Data loading completed!"
 echo ""

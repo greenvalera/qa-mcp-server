@@ -45,7 +45,21 @@ cp env.example .env
 # Відредагуйте .env з вашим OPENAI_API_KEY
 ```
 
-### 2. Запуск через Docker
+### 2. Оновлення embeddings (якщо потрібно)
+
+Для роботи семантичного пошуку потрібно оновити embeddings тесткейсів:
+
+```bash
+# Показати статистику по embeddings
+./scripts/update_embeddings.sh --stats-only
+
+# Оновити embeddings (якщо потрібно)
+./scripts/update_embeddings.sh
+```
+
+Детальніше про оновлення embeddings дивіться в [EMBEDDINGS_UPDATE.md](EMBEDDINGS_UPDATE.md).
+
+### 3. Запуск через Docker
 
 ```bash
 # Встановіть OPENAI_API_KEY в .env файлі
@@ -58,7 +72,7 @@ docker compose up -d
 docker compose ps
 ```
 
-### 3. Завантаження тестових даних
+### 4. Завантаження тестових даних
 
 ```bash
 # Використовує мок Confluence API з тестовими документами

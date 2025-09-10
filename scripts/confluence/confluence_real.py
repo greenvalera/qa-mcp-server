@@ -367,13 +367,17 @@ class RealConfluenceAPI:
         try:
             # Get current user info
             try:
-                user = self.confluence.myself()
-                if isinstance(user, dict):
-                    user_name = user.get('displayName', user.get('username', 'Unknown'))
+                # Try different methods to get user info
+                if hasattr(self.confluence, 'myself'):
+                    user = self.confluence.myself()
+                    if isinstance(user, dict):
+                        user_name = user.get('displayName', user.get('username', 'Unknown'))
+                    else:
+                        user_name = str(user)
                 else:
-                    user_name = str(user)
+                    user_name = "API User"
             except Exception as e:
-                user_name = f"API User ({str(e)[:50]})"
+                user_name = f"API User"
             
             # Get a few spaces to verify access
             spaces = self.confluence.get_all_spaces(start=0, limit=5)

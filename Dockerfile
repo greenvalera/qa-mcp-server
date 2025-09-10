@@ -18,18 +18,17 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY app ./app
-COPY mcp_server.py ./
 
 # Set environment variables
 ENV PYTHONPATH="/app"
 ENV PYTHONUNBUFFERED=1
 
-# FastMCP server runs on stdio (no port needed for MCP)
-# Port 3000 removed as we're using FastMCP with stdio transport
+# Expose port for HTTP server
+EXPOSE 3000
 
-# Health check for FastMCP server (check if process can start)
+# Health check for HTTP server
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import app.mcp_server; print('FastMCP server can import successfully')" || exit 1
+    CMD curl -f http://localhost:3000/health || exit 1
 
-# Default command - FastMCP server with stdio transport
-CMD ["python", "-m", "app.mcp_server"]
+# Default command - HTTP API server
+CMD ["python", "-m", "app.http_api"]
