@@ -24,8 +24,7 @@ from .mcp_tools import (
     qa_get_testcases,
     qa_get_configs,
     qa_get_statistics,
-    qa_get_full_structure,
-    qa_update_embeddings
+    qa_get_full_structure
 )
 
 # Configure logging

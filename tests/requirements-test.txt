@@ -1,0 +1,35 @@
+# Testing dependencies for QA MCP Server
+
+# Core testing framework
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-mock>=3.11.0
+pytest-cov>=4.1.0
+
+# HTTP testing
+httpx>=0.24.0
+requests>=2.31.0
+
+# Mocking and fixtures (unittest.mock is built-in)
+factory-boy>=3.3.0
+
+# Database testing
+sqlalchemy-utils>=0.41.0
+alembic>=1.12.0
+
+# Performance testing
+pytest-benchmark>=4.0.0
+
+# Test reporting
+pytest-html>=3.2.0
+pytest-json-report>=1.5.0
+
+# Code quality
+pytest-flake8>=1.1.0
+pytest-mypy>=0.10.0
+pytest-black>=0.3.0
+pytest-isort>=2.0.0
+
+# Utilities
+freezegun>=1.2.0
+responses>=0.23.0
