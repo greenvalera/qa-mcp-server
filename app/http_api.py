@@ -13,8 +13,8 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from .config import settings
-from .mcp_tools import (
+from app.config import settings
+from app.mcp_tools import (
     qa_search_documents,
     qa_search_testcases, 
     qa_search_testcases_text,

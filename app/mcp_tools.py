@@ -8,9 +8,9 @@ import asyncio
 import logging
 from typing import Any, Dict, List, Optional
 
-from .config import settings
-from .data.qa_repository import QARepository
-from .models.qa_models import QASection, Checklist, TestCase, Config
+from app.config import settings
+from app.data.qa_repository import QARepository
+from app.models.qa_models import QASection, Checklist, TestCase, Config
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -29,8 +29,8 @@ async def qa_search_documents(
 ) -> Dict[str, Any]:
     """Vector search in QA knowledge base (documents and chunks)"""
     try:
-        from .ai.embedder import OpenAIEmbedder
-        from .data.vectordb_repo import VectorDBRepository
+        from app.ai.embedder import OpenAIEmbedder
+        from app.data.vectordb_repo import VectorDBRepository
         
         # Initialize components
         embedder = OpenAIEmbedder()

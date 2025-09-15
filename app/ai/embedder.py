@@ -5,7 +5,7 @@ from typing import List, Optional, Union
 import openai
 from openai import OpenAI
 
-from ..config import settings
+from app.config import settings
 
 
 class OpenAIEmbedder:

@@ -5,8 +5,8 @@ import numpy as np
 from typing import List, Dict, Any, Optional, Tuple
 from openai import OpenAI
 
-from ..config import settings
-from .embedder import OpenAIEmbedder
+from app.config import settings
+from app.ai.embedder import OpenAIEmbedder
 
 
 class FeatureTagger:

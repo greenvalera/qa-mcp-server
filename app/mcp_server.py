@@ -11,8 +11,8 @@ from typing import Any, Dict, List, Optional
 
 from fastmcp import FastMCP, Context
 
-from .config import settings
-from .mcp_tools import (
+from app.config import settings
+from app.mcp_tools import (
     qa_search_documents,
     qa_search_testcases,
     qa_search_testcases_text,
