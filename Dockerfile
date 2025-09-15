@@ -19,11 +19,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY app ./app
 
-# Create symbolic link so that 'app' module can be found from /app
-RUN ln -s /app/app /app/app_module
+# Copy app code to root level so it can be imported as 'app' module
+COPY app ./
 
 # Set environment variables
-ENV PYTHONPATH="/app:/app/app"
+ENV PYTHONPATH="/app"
 ENV PYTHONUNBUFFERED=1
 
 # Expose port for HTTP server
@@ -34,4 +34,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:3000/health || exit 1
 
 # Default command - HTTP API server
-CMD ["python", "-m", "app_module.http_api"]
+CMD ["python", "-m", "app.http_api"]
