@@ -154,7 +154,7 @@ SELECT
     t.expected_result,
     t.screenshot,
     t.priority,
-    t.category,
+    t.functionality,
     t.subcategory,
     t.order_index,
     t.qa_auto_coverage,
