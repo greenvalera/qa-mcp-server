@@ -143,8 +143,11 @@ INSERT IGNORE INTO checklist_configs (checklist_id, config_id) VALUES
 -- Create indexes for better performance
 -- Note: Full-text search indexes on TEXT columns need special handling in MySQL
 -- Can be added later with: CREATE FULLTEXT INDEX idx_testcases_fulltext ON testcases(step, expected_result);
-CREATE INDEX IF NOT EXISTS idx_checklists_title ON checklists(title);
-CREATE INDEX IF NOT EXISTS idx_qa_sections_title ON qa_sections(title);
+
+-- Additional indexes are already created in the table definitions above
+-- Uncomment the following lines if you need to create additional indexes:
+-- CREATE INDEX idx_checklists_title ON checklists(title);
+-- CREATE INDEX idx_qa_sections_title ON qa_sections(title);
 
 -- Create a view for easy querying of complete testcase information
 CREATE OR REPLACE VIEW testcase_details AS
