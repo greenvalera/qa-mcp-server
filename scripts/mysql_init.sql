@@ -9,7 +9,7 @@ DROP TABLE IF EXISTS documents;
 DROP TABLE IF EXISTS features;
 
 -- Create qa_sections table (root sections like "Checklist WEB", "Checklist MOB")
-CREATE TABLE qa_sections (
+CREATE TABLE IF NOT EXISTS qa_sections (
   id INT AUTO_INCREMENT PRIMARY KEY,
   confluence_page_id VARCHAR(64) NOT NULL UNIQUE,
   title VARCHAR(512) NOT NULL,
@@ -27,7 +27,7 @@ CREATE TABLE qa_sections (
 );
 
 -- Create checklists table (pages with testcases like "WEB: Billing History")
-CREATE TABLE checklists (
+CREATE TABLE IF NOT EXISTS checklists (
   id INT AUTO_INCREMENT PRIMARY KEY,
   confluence_page_id VARCHAR(64) NOT NULL UNIQUE,
   title VARCHAR(512) NOT NULL,
@@ -49,7 +49,7 @@ CREATE TABLE checklists (
 );
 
 -- Create configs table (separate entities referenced by testcases)
-CREATE TABLE configs (
+CREATE TABLE IF NOT EXISTS configs (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(255) NOT NULL UNIQUE,
   url VARCHAR(1024) NULL,
@@ -61,7 +61,7 @@ CREATE TABLE configs (
 );
 
 -- Create testcases table (atomic test elements)
-CREATE TABLE testcases (
+CREATE TABLE IF NOT EXISTS testcases (
   id INT AUTO_INCREMENT PRIMARY KEY,
   checklist_id INT NOT NULL,
   step TEXT NOT NULL, -- STEP field
@@ -89,7 +89,7 @@ CREATE TABLE testcases (
 );
 
 -- Create checklist_configs table (many-to-many relationship for configs mentioned in checklist)
-CREATE TABLE checklist_configs (
+CREATE TABLE IF NOT EXISTS checklist_configs (
   checklist_id INT NOT NULL,
   config_id INT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -105,24 +105,24 @@ CREATE TABLE checklist_configs (
 -- Insert sample data for testing
 
 -- Sample QA Sections
-INSERT INTO qa_sections (confluence_page_id, title, description, url, space_key) VALUES 
+INSERT IGNORE INTO qa_sections (confluence_page_id, title, description, url, space_key) VALUES 
 ('43624449', 'Checklist WEB', 'Web application testing checklists', 'https://confluence.togethernetworks.com/pages/43624449', 'QMT'),
 ('117706559', 'Checklist MOB', 'Mobile application testing checklists', 'https://confluence.togethernetworks.com/pages/117706559', 'QMT'),
 ('340830206', 'Payment Page', 'Payment functionality testing', 'https://confluence.togethernetworks.com/pages/340830206', 'QMT');
 
 -- Sample Configs
-INSERT INTO configs (name, url, description) VALUES 
+INSERT IGNORE INTO configs (name, url, description) VALUES 
 ('billingHistoryConfig', 'https://my.platformphoenix.com/search/showConfigs?fileName=%2Fbilling%2Fhistory.yaml', 'Billing history configuration'),
 ('paymentConfig', 'https://my.platformphoenix.com/search/showConfigs?fileName=%2Fpayment%2Fconfig.yaml', 'Payment processing configuration'),
 ('authConfig', 'https://my.platformphoenix.com/search/showConfigs?fileName=%2Fauth%2Fconfig.yaml', 'Authentication configuration');
 
 -- Sample Checklists
-INSERT INTO checklists (confluence_page_id, title, description, url, space_key, section_id, content_hash, version) VALUES 
+INSERT IGNORE INTO checklists (confluence_page_id, title, description, url, space_key, section_id, content_hash, version) VALUES 
 ('billing_history_123', 'WEB: Billing History', 'Testing billing history functionality', 'https://confluence.togethernetworks.com/pages/billing_history_123', 'QMT', 1, SHA2('billing history content', 256), 1),
 ('search_456', 'WEB: Search', 'Testing search functionality', 'https://confluence.togethernetworks.com/pages/search_456', 'QMT', 1, SHA2('search content', 256), 1);
 
 -- Sample Testcases
-INSERT INTO testcases (checklist_id, step, expected_result, test_group, functionality, priority, order_index, config_id) VALUES 
+INSERT IGNORE INTO testcases (checklist_id, step, expected_result, test_group, functionality, priority, order_index, config_id) VALUES 
 -- Billing History testcases
 (1, 'Navigate to billing history page', 'Billing history page loads successfully', 'GENERAL', 'Navigation', 'HIGH', 1, 1),
 (1, 'Verify billing history table displays', 'Table shows all user transactions', 'GENERAL', 'Display', 'HIGH', 2, 1),
@@ -135,7 +135,7 @@ INSERT INTO testcases (checklist_id, step, expected_result, test_group, function
 (2, 'Test search with special characters', 'Special characters are handled properly', 'CUSTOM', 'Edge Cases', 'LOW', 3, NULL);
 
 -- Link checklists to configs
-INSERT INTO checklist_configs (checklist_id, config_id) VALUES 
+INSERT IGNORE INTO checklist_configs (checklist_id, config_id) VALUES 
 (1, 1), -- Billing History uses billingHistoryConfig
 (1, 2), -- Billing History also uses paymentConfig
 (2, 3); -- Search uses authConfig
@@ -143,11 +143,11 @@ INSERT INTO checklist_configs (checklist_id, config_id) VALUES
 -- Create indexes for better performance
 -- Note: Full-text search indexes on TEXT columns need special handling in MySQL
 -- Can be added later with: CREATE FULLTEXT INDEX idx_testcases_fulltext ON testcases(step, expected_result);
-CREATE INDEX idx_checklists_title ON checklists(title);
-CREATE INDEX idx_qa_sections_title ON qa_sections(title);
+CREATE INDEX IF NOT EXISTS idx_checklists_title ON checklists(title);
+CREATE INDEX IF NOT EXISTS idx_qa_sections_title ON qa_sections(title);
 
 -- Create a view for easy querying of complete testcase information
-CREATE VIEW testcase_details AS
+CREATE OR REPLACE VIEW testcase_details AS
 SELECT 
     t.id as testcase_id,
     t.step,
