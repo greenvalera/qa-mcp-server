@@ -49,6 +49,25 @@ class JSONRPCResponse(BaseModel):
     error: Optional[Dict[str, Any]] = None
     id: Optional[int] = None
 
+# Request models for HTTP endpoints
+class SearchDocumentsRequest(BaseModel):
+    query: str
+    top_k: int = 10
+    feature_names: Optional[List[str]] = None
+    space_keys: Optional[List[str]] = None
+    filters: Optional[Dict[str, Any]] = None
+    return_chunks: bool = True
+
+class SearchTestcasesRequest(BaseModel):
+    query: str
+    limit: int = 10
+    min_similarity: float = 0.5
+    section_id: Optional[int] = None
+    checklist_id: Optional[int] = None
+    test_group: Optional[str] = None
+    functionality: Optional[str] = None
+    priority: Optional[str] = None
+
 # MCP Tools registry - всі інструменти з зрозумілими назвами
 TOOLS = {
     "qa.search_documents": qa_search_documents,  # Пошук в документації/знаннях
@@ -323,50 +342,34 @@ async def jsonrpc_handler(request: JSONRPCRequest):
 
 # Direct HTTP endpoints for each tool
 @app.post("/api/search_documents")
-async def api_search_documents(
-    query: str,
-    top_k: int = 10,
-    feature_names: Optional[List[str]] = None,
-    space_keys: Optional[List[str]] = None,
-    filters: Optional[Dict[str, Any]] = None,
-    return_chunks: bool = True
-):
+async def api_search_documents(request: SearchDocumentsRequest):
     """Direct HTTP endpoint for document search"""
     try:
         result = await qa_search_documents(
-            query=query,
-            top_k=top_k,
-            feature_names=feature_names,
-            space_keys=space_keys,
-            filters=filters,
-            return_chunks=return_chunks
+            query=request.query,
+            top_k=request.top_k,
+            feature_names=request.feature_names,
+            space_keys=request.space_keys,
+            filters=request.filters,
+            return_chunks=request.return_chunks
         )
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/search_testcases")
-async def api_search_testcases(
-    query: str,
-    limit: int = 10,
-    min_similarity: float = 0.5,
-    section_id: Optional[int] = None,
-    checklist_id: Optional[int] = None,
-    test_group: Optional[str] = None,
-    functionality: Optional[str] = None,
-    priority: Optional[str] = None
-):
+async def api_search_testcases(request: SearchTestcasesRequest):
     """Direct HTTP endpoint for testcase search"""
     try:
         result = await qa_search_testcases(
-            query=query,
-            limit=limit,
-            min_similarity=min_similarity,
-            section_id=section_id,
-            checklist_id=checklist_id,
-            test_group=test_group,
-            functionality=functionality,
-            priority=priority
+            query=request.query,
+            limit=request.limit,
+            min_similarity=request.min_similarity,
+            section_id=request.section_id,
+            checklist_id=request.checklist_id,
+            test_group=request.test_group,
+            functionality=request.functionality,
+            priority=request.priority
         )
         return result
     except Exception as e:

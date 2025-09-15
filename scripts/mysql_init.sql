@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS testcases (
   order_index INT NOT NULL DEFAULT 0, -- Order within checklist
   config_id INT NULL, -- Reference to config
   qa_auto_coverage VARCHAR(255) NULL, -- QA AUTO COVERAGE field
+  embedding LONGTEXT NULL, -- Vector embedding for semantic search
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   
