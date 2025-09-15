@@ -63,7 +63,7 @@ services:
       
       # Environment
       ENVIRONMENT: ${ENVIRONMENT:-production}
-      PYTHONPATH: "/app"
+      PYTHONPATH: "/app:/app/app"
     depends_on:
       mysql:
         condition: service_healthy
