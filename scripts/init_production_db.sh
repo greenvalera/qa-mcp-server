@@ -175,7 +175,26 @@ init_mysql() {
     
     # Чекаємо поки MySQL буде готовий
     echo -e "${YELLOW}⏳ Очікування готовності MySQL...${NC}"
-    timeout 60 bash -c 'until docker compose exec mysql mysqladmin ping -h localhost --silent; do sleep 2; done'
+    local max_attempts=30
+    local attempt=0
+    
+    while [ $attempt -lt $max_attempts ]; do
+        if docker compose exec mysql mysqladmin ping -h localhost -u root -proot --silent 2>/dev/null; then
+            echo -e "${GREEN}✅ MySQL готовий${NC}"
+            break
+        fi
+        
+        attempt=$((attempt + 1))
+        echo -e "${YELLOW}   Спроба $attempt/$max_attempts...${NC}"
+        sleep 2
+    done
+    
+    if [ $attempt -eq $max_attempts ]; then
+        echo -e "${RED}❌ MySQL не готовий після $max_attempts спроб${NC}"
+        echo -e "${YELLOW}Логи MySQL:${NC}"
+        docker compose logs mysql --tail 20
+        exit 1
+    fi
     
     # Виконуємо ініціалізацію
     if [ -f "scripts/mysql_init.sql" ]; then
@@ -197,7 +216,26 @@ init_qdrant() {
     
     # Чекаємо поки Qdrant буде готовий
     echo -e "${YELLOW}⏳ Очікування готовності Qdrant...${NC}"
-    timeout 60 bash -c 'until curl -s http://localhost:6333/health > /dev/null; do sleep 2; done'
+    local max_attempts=30
+    local attempt=0
+    
+    while [ $attempt -lt $max_attempts ]; do
+        if curl -s http://localhost:6333/health > /dev/null 2>&1; then
+            echo -e "${GREEN}✅ Qdrant готовий${NC}"
+            break
+        fi
+        
+        attempt=$((attempt + 1))
+        echo -e "${YELLOW}   Спроба $attempt/$max_attempts...${NC}"
+        sleep 2
+    done
+    
+    if [ $attempt -eq $max_attempts ]; then
+        echo -e "${RED}❌ Qdrant не готовий після $max_attempts спроб${NC}"
+        echo -e "${YELLOW}Логи Qdrant:${NC}"
+        docker compose logs qdrant --tail 20
+        exit 1
+    fi
     
     echo -e "${GREEN}✅ Qdrant ініціалізовано${NC}"
 }
