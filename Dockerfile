@@ -23,7 +23,7 @@ COPY app ./app
 COPY app ./
 
 # Set environment variables
-ENV PYTHONPATH="/app"
+ENV PYTHONPATH="/app:/app/app"
 ENV PYTHONUNBUFFERED=1
 
 # Expose port for HTTP server
