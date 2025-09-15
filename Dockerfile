@@ -20,7 +20,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
 
 # Set environment variables
-ENV PYTHONPATH="/app:/app/app"
+ENV PYTHONPATH="/app"
 ENV PYTHONUNBUFFERED=1
 
 # Expose port for HTTP server

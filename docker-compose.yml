@@ -63,7 +63,7 @@ services:
       
       # Environment
       ENVIRONMENT: ${ENVIRONMENT:-production}
-      PYTHONPATH: "/app:/app/app"
+      PYTHONPATH: "/app"
     depends_on:
       mysql:
         condition: service_healthy
@@ -73,7 +73,7 @@ services:
       - "3000:3000"
     volumes:
       - ./app:/app/app:ro  # For development
-      - ./scripts:/app/scripts:ro  # For scripts
+      - ./scripts:/scripts:ro  # For scripts
     networks:
       - qa_network
     healthcheck:
