@@ -308,9 +308,15 @@ async def jsonrpc_handler(request: JSONRPCRequest):
                     }
                 )
         
-        elif method in ["ping", "notifications/initialized"]:
+        elif method == "ping":
             return JSONRPCResponse(
                 id=request.id,
+                result={}
+            )
+        
+        elif method == "notifications/initialized":
+            # Notification methods should not have an id in the response
+            return JSONRPCResponse(
                 result={}
             )
         
