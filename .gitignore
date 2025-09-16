@@ -228,7 +228,6 @@ config.local.py
 secrets.py
 
 # Data files
-data/
 *.csv
 *.json.bak
 *.xml.bak
@@ -287,7 +286,6 @@ qdrant_storage/
 vector_data/
 
 # ML models and data
-models/
 *.pkl
 *.joblib
 *.model
