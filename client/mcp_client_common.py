@@ -1,20 +1,15 @@
 #!/usr/bin/env python3
 """
-MCP Remote Server - stdio прослойка для віддаленого HTTP API сервера
-Аналогічно до mcp_local.py, але підключається до віддаленого сервера
+MCP Common Module - спільні компоненти для MCP серверів
+Містить загальні функції, схеми інструментів та обробники для локального та віддаленого MCP серверів
 """
 
 import json
 import sys
-import urllib.request
-import urllib.parse
 from typing import Dict, Any, List
 
-# Адреса віддаленого сервера
-REMOTE_SERVER_URL = "http://10.11.0.128:3000"
-
 # Список інструментів з підкресленнями для Cursor (зрозумілі назви)
-TOOLS = [
+TOOLS_SCHEMA = [
     {
         "name": "qa_search_documents",
         "description": "🔍 Search in DOCUMENTATION and knowledge base - finds relevant docs, guides, and information chunks",
@@ -158,7 +153,7 @@ TOOLS = [
     }
 ]
 
-# Мапінг назв інструментів з підкресленнями на назви з крапками для віддаленого сервера
+# Мапінг назв інструментів з підкресленнями на назви з крапками для HTTP серверів
 TOOL_NAME_MAPPING = {
     "qa_search_documents": "qa.search_documents",
     "qa_search_testcases": "qa.search_testcases",
@@ -175,57 +170,15 @@ TOOL_NAME_MAPPING = {
 }
 
 
-def call_remote_server(method: str, params: Dict[str, Any]) -> Dict[str, Any]:
-    """Викликає віддалений HTTP API сервер"""
-    try:
-        # Мапимо назву інструмента
-        remote_method = TOOL_NAME_MAPPING.get(method, method)
-        
-        # Формуємо JSON-RPC запит
-        jsonrpc_request = {
-            "jsonrpc": "2.0",
-            "method": "tools/call",
-            "params": {
-                "name": remote_method,
-                "arguments": params
-            },
-            "id": 1
-        }
-        
-        # Відправляємо запит
-        data = json.dumps(jsonrpc_request).encode('utf-8')
-        req = urllib.request.Request(
-            f"{REMOTE_SERVER_URL}/jsonrpc",
-            data=data,
-            headers={'Content-Type': 'application/json'}
-        )
-        
-        with urllib.request.urlopen(req, timeout=30) as response:
-            result = json.loads(response.read().decode('utf-8'))
-            
-            if 'error' in result and result['error']:
-                return {"error": result['error']['message'], "success": False}
-            
-            # Розпаковуємо відповідь MCP
-            if 'result' in result and 'content' in result['result']:
-                content = result['result']['content']
-                if content and len(content) > 0 and 'text' in content[0]:
-                    return json.loads(content[0]['text'])
-            
-            return {"error": "Invalid response format", "success": False}
-
-        
-    except Exception as e:
-        return {"error": f"Failed to call remote server: {str(e)}", "success": False}
-
-
-def handle_request(request: Dict[str, Any]) -> Dict[str, Any]:
-    """Обробляє MCP запити"""
-    method = request.get("method")
-    params = request.get("params", {})
-    request_id = request.get("id")
-
-    if method == "initialize":
+class MCPHandler:
+    """Базовий клас для обробки MCP запитів"""
+    
+    def __init__(self, server_name: str, server_version: str = "1.0.0"):
+        self.server_name = server_name
+        self.server_version = server_version
+    
+    def handle_initialize(self, request_id: Any) -> Dict[str, Any]:
+        """Обробляє запит ініціалізації MCP"""
         return {
             "jsonrpc": "2.0",
             "id": request_id,
@@ -235,100 +188,128 @@ def handle_request(request: Dict[str, Any]) -> Dict[str, Any]:
                     "tools": {}
                 },
                 "serverInfo": {
-                    "name": "qa-search-remote",
-                    "version": "1.0.0"
+                    "name": self.server_name,
+                    "version": self.server_version
                 }
             }
         }
-
-    elif method == "tools/list":
+    
+    def handle_tools_list(self, request_id: Any) -> Dict[str, Any]:
+        """Обробляє запит списку інструментів"""
         return {
             "jsonrpc": "2.0",
             "id": request_id,
             "result": {
-                "tools": TOOLS
+                "tools": TOOLS_SCHEMA
             }
         }
-
-    elif method == "tools/call":
-        tool_name = params.get("name")
-        tool_args = params.get("arguments", {})
-        
-        # Викликаємо віддалений HTTP сервер
-        result = call_remote_server(tool_name, tool_args)
-        
-        return {
-            "jsonrpc": "2.0",
-            "id": request_id,
-            "result": {
-                "content": [
-                    {
-                        "type": "text",
-                        "text": json.dumps(result, ensure_ascii=False)
-                    }
-                ]
-            }
-        }
-
-    elif method == "ping":
+    
+    def handle_tools_call(self, request_id: Any, tool_name: str, tool_args: Dict[str, Any]) -> Dict[str, Any]:
+        """Обробляє виклик інструмента - повинен бути перевизначений в підкласах"""
+        raise NotImplementedError("handle_tools_call must be implemented by subclasses")
+    
+    def handle_ping(self, request_id: Any) -> Dict[str, Any]:
+        """Обробляє ping запит"""
         return {
             "jsonrpc": "2.0",
             "id": request_id,
             "result": {}
         }
-
-    elif method == "notifications/initialized":
+    
+    def handle_notifications_initialized(self, request_id: Any) -> Dict[str, Any]:
+        """Обробляє notification про ініціалізацію"""
         return {
             "jsonrpc": "2.0",
             "id": request_id,
             "result": {}
         }
+    
+    def handle_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """Основний обробник MCP запитів"""
+        method = request.get("method")
+        params = request.get("params", {})
+        request_id = request.get("id")
 
-    else:
-        return {
-            "jsonrpc": "2.0",
-            "id": request_id,
-            "error": {
-                "code": -32601,
-                "message": f"Method not found: {method}"
+        if method == "initialize":
+            return self.handle_initialize(request_id)
+        elif method == "tools/list":
+            return self.handle_tools_list(request_id)
+        elif method == "tools/call":
+            tool_name = params.get("name")
+            tool_args = params.get("arguments", {})
+            return self.handle_tools_call(request_id, tool_name, tool_args)
+        elif method == "ping":
+            return self.handle_ping(request_id)
+        elif method == "notifications/initialized":
+            return self.handle_notifications_initialized(request_id)
+        else:
+            return {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "error": {
+                    "code": -32601,
+                    "message": f"Method not found: {method}"
+                }
             }
+
+
+def create_mcp_response(request_id: Any, result: Any) -> Dict[str, Any]:
+    """Створює стандартну MCP відповідь з результатом"""
+    return {
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "result": {
+            "content": [
+                {
+                    "type": "text",
+                    "text": json.dumps(result, ensure_ascii=False)
+                }
+            ]
         }
+    }
 
 
-def main():
-    """Основна функція для stdio MCP сервера"""
+def create_error_response(request_id: Any, code: int, message: str) -> Dict[str, Any]:
+    """Створює стандартну MCP відповідь з помилкою"""
+    return {
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "error": {
+            "code": code,
+            "message": message
+        }
+    }
+
+
+def run_stdio_server(handler: MCPHandler, debug: bool = False):
+    """Запускає stdio MCP сервер з заданим обробником"""
+    if debug:
+        print(f"MCP Server '{handler.server_name}' ready", file=sys.stderr)
+    
     try:
         for line in sys.stdin:
+            line = line.strip()
+            if not line:
+                continue
+                
             try:
-                request = json.loads(line.strip())
-                response = handle_request(request)
+                request = json.loads(line)
+                response = handler.handle_request(request)
                 print(json.dumps(response, ensure_ascii=False))
                 sys.stdout.flush()
             except json.JSONDecodeError as e:
-                error_response = {
-                    "jsonrpc": "2.0",
-                    "error": {
-                        "code": -32700,
-                        "message": f"Parse error: {str(e)}"
-                    },
-                    "id": None
-                }
+                error_response = create_error_response(
+                    None, -32700, f"Parse error: {str(e)}"
+                )
                 print(json.dumps(error_response, ensure_ascii=False))
                 sys.stdout.flush()
             except Exception as e:
-                error_response = {
-                    "jsonrpc": "2.0",
-                    "error": {
-                        "code": -32603,
-                        "message": f"Internal error: {str(e)}"
-                    },
-                    "id": None
-                }
+                error_response = create_error_response(
+                    None, -32603, f"Internal error: {str(e)}"
+                )
                 print(json.dumps(error_response, ensure_ascii=False))
                 sys.stdout.flush()
     except KeyboardInterrupt:
+        if debug:
+            print(f"MCP Server '{handler.server_name}' stopped", file=sys.stderr)
         pass
-
-
-if __name__ == "__main__":
-    main()
