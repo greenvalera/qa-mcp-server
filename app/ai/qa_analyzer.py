@@ -175,7 +175,7 @@ class QAContentAnalyzer:
 """
     
     def _parse_llm_response(self, response_text: str) -> Dict[str, Any]:
-        """Parse LLM response."""
+        """Parse LLM response with improved error handling."""
         try:
             # Extract JSON from response
             start_idx = response_text.find('{')
@@ -185,10 +185,15 @@ class QAContentAnalyzer:
                 raise ValueError("JSON not found in response")
             
             json_text = response_text[start_idx:end_idx]
+            
+            # Try to fix common JSON issues
+            json_text = self._fix_json_issues(json_text)
+            
             return json.loads(json_text)
             
         except Exception as e:
             print(f"Error parsing LLM response: {e}")
+            print(f"Response text: {response_text[:500]}...")
             return {
                 "section_title": "",
                 "checklist_description": "",
@@ -199,6 +204,46 @@ class QAContentAnalyzer:
                 "configs": [],
                 "confidence": 0.0
             }
+    
+    def _fix_json_issues(self, json_text: str) -> str:
+        """Fix common JSON parsing issues."""
+        import re
+        
+        # Remove trailing commas before closing braces/brackets
+        json_text = re.sub(r',(\s*[}\]])', r'\1', json_text)
+        
+        # Fix unescaped quotes in strings - more aggressive approach
+        json_text = re.sub(r'(?<!\\)"(?=.*")', r'\\"', json_text)
+        
+        # Fix missing quotes around keys
+        json_text = re.sub(r'(\w+):', r'"\1":', json_text)
+        
+        # Fix single quotes to double quotes
+        json_text = json_text.replace("'", '"')
+        
+        # Fix null values that might be causing issues
+        json_text = json_text.replace('null', '""')
+        
+        # Remove any control characters that might break JSON
+        json_text = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', json_text)
+        
+        # Try to fix truncated JSON by finding the last complete object
+        if json_text.count('{') > json_text.count('}'):
+            # Find the last complete object
+            brace_count = 0
+            last_complete_pos = -1
+            for i, char in enumerate(json_text):
+                if char == '{':
+                    brace_count += 1
+                elif char == '}':
+                    brace_count -= 1
+                    if brace_count == 0:
+                        last_complete_pos = i + 1
+            
+            if last_complete_pos > 0:
+                json_text = json_text[:last_complete_pos]
+        
+        return json_text
     
     def _fallback_analysis(self, title: str, content: str) -> QAAnalysisResult:
         """Fallback analysis without LLM."""

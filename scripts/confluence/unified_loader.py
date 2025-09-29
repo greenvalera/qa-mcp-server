@@ -23,10 +23,14 @@ from app.ai.qa_analyzer import QAContentAnalyzer
 try:
     from .confluence_mock import MockConfluenceAPI
     from .confluence_real import RealConfluenceAPI
+    from .enhanced_qa_analyzer import EnhancedQAAnalyzer
+    from .html_table_parser import EnhancedConfluenceTableParser
 except ImportError:
     # Fallback for direct script execution
     from confluence_mock import MockConfluenceAPI
     from confluence_real import RealConfluenceAPI
+    from enhanced_qa_analyzer import EnhancedQAAnalyzer
+    from html_table_parser import EnhancedConfluenceTableParser
 
 
 @dataclass
@@ -151,17 +155,19 @@ class ChunkProcessor:
 class UnifiedConfluenceLoader:
     """Об'єднаний завантажувач Confluence даних для MySQL та векторної бази."""
     
-    def __init__(self, use_mock: bool = True, load_mysql: bool = True, load_vector: bool = True):
+    def __init__(self, use_mock: bool = True, load_mysql: bool = True, load_vector: bool = True, use_enhanced_analysis: bool = True):
         """Initialize unified loader."""
         self.use_mock = use_mock
         self.load_mysql = load_mysql
         self.load_vector = load_vector
+        self.use_enhanced_analysis = use_enhanced_analysis
         self.progress = LoadingProgress()
         
         # Initialize repositories
         if self.load_mysql:
             self.qa_repo = QARepository()
-            self.qa_analyzer = QAContentAnalyzer()
+            self.qa_analyzer = EnhancedQAAnalyzer()  # Використовуємо покращений аналізатор
+            self.html_parser = EnhancedConfluenceTableParser()  # Додаємо HTML парсер
             self._existing_checklists = set()
             self._load_existing_checklists()
         
@@ -354,7 +360,7 @@ class UnifiedConfluenceLoader:
         return result
     
     async def _process_page_mysql(self, page: Dict[str, Any]) -> Dict[str, Any]:
-        """Обробляє сторінку для MySQL (структуровані QA дані)."""
+        """Обробляє сторінку для MySQL (структуровані QA дані) з гібридним підходом."""
         try:
             page_id = page['id']
             title = page['title']
@@ -364,12 +370,77 @@ class UnifiedConfluenceLoader:
             if not page_content:
                 return {'success': False, 'reason': 'Не вдалося отримати контент'}
             
-            # Analyze content with AI
             content = page_content.get('content', '')
-            analysis_result = self.qa_analyzer.analyze_qa_content(title, content)
+            normalized_content = self.confluence_api.normalize_content(content)
+            
+            # Гібридний підхід: HTML парсер + AI аналіз
+            html_testcases = []
+            ai_testcases = []
+            ai_configs = []
+            
+            # 1. Спочатку пробуємо HTML парсер
+            html_start_time = datetime.now()
+            try:
+                html_testcases = self.html_parser.parse_testcases_from_html(content)
+                html_duration = (datetime.now() - html_start_time).total_seconds()
+                click.echo(f"  🔍 HTML парсер знайшов {len(html_testcases)} тесткейсів за {html_duration:.2f}с")
+                
+                # Логуємо статистику HTML парсера
+                self._log_parser_stats("HTML", len(html_testcases), html_duration, True)
+            except Exception as e:
+                html_duration = (datetime.now() - html_start_time).total_seconds()
+                click.echo(f"  ⚠️ HTML парсер не спрацював: {e}")
+                self._log_parser_stats("HTML", 0, html_duration, False, str(e))
+            
+            # 2. AI аналіз як доповнення або backup
+            ai_start_time = datetime.now()
+            try:
+                if self.use_enhanced_analysis:
+                    analysis_result = self.qa_analyzer.analyze_qa_content_enhanced(title, normalized_content)
+                else:
+                    analysis_result = self.qa_analyzer.analyze_qa_content(title, normalized_content)
+                
+                ai_testcases = analysis_result.testcases
+                ai_configs = analysis_result.configs
+                ai_duration = (datetime.now() - ai_start_time).total_seconds()
+                click.echo(f"  🤖 AI аналіз знайшов {len(ai_testcases)} тесткейсів, {len(ai_configs)} конфігів за {ai_duration:.2f}с")
+                
+                # Логуємо статистику AI аналізу
+                self._log_parser_stats("AI", len(ai_testcases), ai_duration, True, confidence=analysis_result.analysis_confidence)
+            except Exception as e:
+                ai_duration = (datetime.now() - ai_start_time).total_seconds()
+                click.echo(f"  ⚠️ AI аналіз не спрацював: {e}")
+                self._log_parser_stats("AI", 0, ai_duration, False, str(e))
+            
+            # 3. Об'єднуємо результати
+            merge_start_time = datetime.now()
+            all_testcases = []
+            
+            if len(html_testcases) > 10:  # Якщо HTML знайшов достатньо
+                click.echo(f"  🎯 Використовуємо HTML результати як основні")
+                all_testcases.extend(html_testcases)
+                # Додаємо AI результати як доповнення
+                all_testcases.extend(ai_testcases)
+                primary_method = "HTML"
+            else:
+                click.echo(f"  🤖 Використовуємо AI результати як основні")
+                all_testcases.extend(ai_testcases)
+                # Додаємо HTML результати як доповнення
+                all_testcases.extend(html_testcases)
+                primary_method = "AI"
+            
+            # Видаляємо дублікати
+            unique_testcases = self._remove_duplicates(all_testcases)
+            merge_duration = (datetime.now() - merge_start_time).total_seconds()
+            duplicates_removed = len(all_testcases) - len(unique_testcases)
+            
+            click.echo(f"  ✅ Унікальних тесткейсів після об'єднання: {len(unique_testcases)} (видалено {duplicates_removed} дублікатів за {merge_duration:.2f}с)")
+            
+            # Логуємо статистику об'єднання
+            self._log_merge_stats(len(all_testcases), len(unique_testcases), duplicates_removed, primary_method, merge_duration)
             
             # Check if result is valid
-            if not analysis_result.testcases and not analysis_result.configs:
+            if not unique_testcases and not ai_configs:
                 return {'success': False, 'reason': 'Немає тесткейсів або конфігів'}
             
             # Create checklist in DB
@@ -411,7 +482,7 @@ class UnifiedConfluenceLoader:
                 configs_created = 0
                 testcases_created = 0
                 
-                for testcase_data in analysis_result.testcases:
+                for testcase_data in unique_testcases:
                     # Create config if needed
                     config_id = None
                     if testcase_data.get('config_name'):
@@ -514,6 +585,160 @@ class UnifiedConfluenceLoader:
         except Exception as e:
             return {'success': False, 'reason': f'Помилка: {str(e)}'}
     
+    def _remove_duplicates(self, testcases: List[Dict]) -> List[Dict]:
+        """Покращене видалення дублікатів з тесткейсів"""
+        
+        unique_testcases = []
+        seen_hashes = set()
+        
+        for testcase in testcases:
+            step = (testcase.get('step') or '').strip()
+            expected = (testcase.get('expected_result') or '').strip()
+            
+            if not step or len(step) < 10:
+                continue  # Пропускаємо занадто короткі кроки
+            
+            # Створюємо хеш на основі кроку та очікуваного результату
+            testcase_hash = self._create_testcase_hash(step, expected)
+            
+            # Перевіряємо на дублікат
+            if testcase_hash not in seen_hashes:
+                seen_hashes.add(testcase_hash)
+                unique_testcases.append(testcase)
+            else:
+                # Якщо це дублікат, але з кращими даними, замінюємо
+                existing_index = self._find_existing_testcase_index(unique_testcases, testcase_hash)
+                if existing_index is not None:
+                    if self._is_better_testcase(testcase, unique_testcases[existing_index]):
+                        unique_testcases[existing_index] = testcase
+        
+        return unique_testcases
+    
+    def _normalize_step_for_comparison(self, step: str) -> str:
+        """Нормалізує крок для порівняння"""
+        
+        import re
+        
+        # Приводимо до нижнього регістру
+        normalized = step.lower().strip()
+        
+        # Видаляємо зайві пробіли
+        normalized = re.sub(r'\s+', ' ', normalized)
+        
+        # Видаляємо розділові знаки
+        normalized = re.sub(r'[^\w\s]', '', normalized)
+        
+        return normalized
+    
+    def _create_testcase_hash(self, step: str, expected: str) -> str:
+        """Створює хеш для тесткейсу на основі кроку та очікуваного результату"""
+        import hashlib
+        
+        # Нормалізуємо текст
+        normalized_step = self._normalize_step_for_comparison(step)
+        normalized_expected = self._normalize_step_for_comparison(expected)
+        
+        # Створюємо хеш
+        combined_text = f"{normalized_step}|{normalized_expected}"
+        return hashlib.md5(combined_text.encode()).hexdigest()
+    
+    def _find_existing_testcase_index(self, testcases: List[Dict], testcase_hash: str) -> Optional[int]:
+        """Знаходить індекс існуючого тесткейсу за хешем"""
+        for i, testcase in enumerate(testcases):
+            step = (testcase.get('step') or '').strip()
+            expected = (testcase.get('expected_result') or '').strip()
+            existing_hash = self._create_testcase_hash(step, expected)
+            if existing_hash == testcase_hash:
+                return i
+        return None
+    
+    def _is_better_testcase(self, new_testcase: Dict, existing_testcase: Dict) -> bool:
+        """Перевіряє чи є новий тесткейс кращим за існуючий"""
+        
+        # Перевіряємо наявність пріоритету
+        new_priority = new_testcase.get('priority')
+        existing_priority = existing_testcase.get('priority')
+        
+        if new_priority and not existing_priority:
+            return True
+        if not new_priority and existing_priority:
+            return False
+        
+        # Перевіряємо наявність конфігу
+        new_config = new_testcase.get('config')
+        existing_config = existing_testcase.get('config')
+        
+        if new_config and not existing_config:
+            return True
+        if not new_config and existing_config:
+            return False
+        
+        # Перевіряємо довжину кроку (довший = кращий)
+        new_step_len = len(new_testcase.get('step', ''))
+        existing_step_len = len(existing_testcase.get('step', ''))
+        
+        return new_step_len > existing_step_len
+    
+    def _calculate_similarity(self, text1: str, text2: str) -> float:
+        """Обчислює схожість між двома текстами"""
+        
+        if not text1 or not text2:
+            return 0.0
+        
+        # Простий алгоритм на основі спільних слів
+        words1 = set(text1.lower().split())
+        words2 = set(text2.lower().split())
+        
+        if not words1 or not words2:
+            return 0.0
+        
+        intersection = words1.intersection(words2)
+        union = words1.union(words2)
+        
+        return len(intersection) / len(union) if union else 0.0
+    
+    def _log_parser_stats(self, parser_type: str, testcases_count: int, duration: float, success: bool, error: str = None, confidence: float = None):
+        """Логує статистику парсера"""
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
+        log_data = {
+            'parser_type': parser_type,
+            'testcases_count': testcases_count,
+            'duration_seconds': duration,
+            'success': success,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        if error:
+            log_data['error'] = error
+        
+        if confidence is not None:
+            log_data['confidence'] = confidence
+        
+        if success:
+            logger.info(f"Parser {parser_type}: {testcases_count} testcases in {duration:.2f}s", extra=log_data)
+        else:
+            logger.warning(f"Parser {parser_type} failed: {error}", extra=log_data)
+    
+    def _log_merge_stats(self, total_testcases: int, unique_testcases: int, duplicates_removed: int, primary_method: str, duration: float):
+        """Логує статистику об'єднання"""
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
+        log_data = {
+            'total_testcases': total_testcases,
+            'unique_testcases': unique_testcases,
+            'duplicates_removed': duplicates_removed,
+            'primary_method': primary_method,
+            'duration_seconds': duration,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        logger.info(f"Merge completed: {unique_testcases} unique from {total_testcases} total (removed {duplicates_removed} duplicates) in {duration:.2f}s", extra=log_data)
+    
     def _get_or_create_config(self, session, config_name: str, config_url: str = None) -> Optional[Config]:
         """Отримує або створює конфігурацію."""
         if not config_name:
@@ -591,7 +816,8 @@ class UnifiedConfluenceLoader:
 @click.option('--test-connection', is_flag=True, help='Test Confluence connection and exit')
 @click.option('--mysql-only', is_flag=True, help='Load only to MySQL (skip vector DB)')
 @click.option('--vector-only', is_flag=True, help='Load only to vector DB (skip MySQL)')
-def main(page_ids, spaces, labels, since, limit, use_config, use_real_api, test_connection, mysql_only, vector_only):
+@click.option('--disable-enhanced-analysis', is_flag=True, help='Disable enhanced block-based analysis')
+def main(page_ids, spaces, labels, since, limit, use_config, use_real_api, test_connection, mysql_only, vector_only, disable_enhanced_analysis):
     """Unified Confluence loader - завантажує дані в MySQL та векторну базу."""
     
     # Validate environment
@@ -641,7 +867,8 @@ def main(page_ids, spaces, labels, since, limit, use_config, use_real_api, test_
     loader = UnifiedConfluenceLoader(
         use_mock=not use_real_api,
         load_mysql=load_mysql,
-        load_vector=load_vector
+        load_vector=load_vector,
+        use_enhanced_analysis=not disable_enhanced_analysis
     )
     
     # Test connection if requested
