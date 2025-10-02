@@ -125,7 +125,6 @@ class QARepository:
                      checklist_id: Optional[int] = None,
                      test_group: Optional[str] = None,
                      functionality: Optional[str] = None,
-                     subcategory: Optional[str] = None,
                      priority: Optional[str] = None,
                      limit: int = 100,
                      offset: int = 0) -> Tuple[List[TestCase], int]:
@@ -142,8 +141,6 @@ class QARepository:
                 query = query.filter_by(test_group=test_group)
             if functionality:
                 query = query.filter_by(functionality=functionality)
-            if subcategory:
-                query = query.filter_by(subcategory=subcategory)
             if priority:
                 query = query.filter_by(priority=priority)
             
@@ -187,7 +184,6 @@ class QARepository:
                     TestCase.step.contains(query),
                     TestCase.expected_result.contains(query),
                     TestCase.functionality.contains(query),
-                    TestCase.subcategory.contains(query)
                 )
             )
             
@@ -294,15 +290,6 @@ class QARepository:
             
             stats['priorities'] = {pri.value if pri else None: count for pri, count in priority_stats if pri}
             
-            # Топ субкатегорії
-            subcategory_stats = session.query(
-                TestCase.subcategory,
-                func.count(TestCase.id).label('count')
-            ).filter(TestCase.subcategory.isnot(None)).group_by(
-                TestCase.subcategory
-            ).order_by(func.count(TestCase.id).desc()).limit(10).all()
-            
-            stats['top_subcategories'] = {sub: count for sub, count in subcategory_stats}
             
             # Топ чекліст по кількості тесткейсів
             checklist_stats = session.query(

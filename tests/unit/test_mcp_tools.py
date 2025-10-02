@@ -88,7 +88,6 @@ class TestQASearchTestcases:
                     priority=Mock(value="HIGH"),
                     test_group=Mock(value="GENERAL"),
                     functionality="Search",
-                    subcategory=None,
                     checklist_id=1,
                     screenshot=None,
                     qa_auto_coverage=None
@@ -167,7 +166,6 @@ class TestQASearchTestcasesText:
         mock_testcase.priority = Mock(value="HIGH")
         mock_testcase.test_group = Mock(value="GENERAL")
         mock_testcase.functionality = "Search"
-        mock_testcase.subcategory = None
         mock_testcase.checklist_id = 1
         mock_testcase.checklist = Mock()
         mock_testcase.checklist.title = "Test Checklist"

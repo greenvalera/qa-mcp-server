@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS checklists (
   url VARCHAR(1024) NOT NULL,
   space_key VARCHAR(64) NOT NULL,
   section_id INT NOT NULL, -- belongs to a QA section
+  subcategory VARCHAR(255) NULL, -- Subcategory from parent page hierarchy
   content_hash CHAR(64) NOT NULL,
   version INT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -44,6 +45,7 @@ CREATE TABLE IF NOT EXISTS checklists (
   INDEX idx_checklists_confluence_id (confluence_page_id),
   INDEX idx_checklists_section (section_id),
   INDEX idx_checklists_space (space_key),
+  INDEX idx_checklists_subcategory (subcategory),
   INDEX idx_checklists_hash (content_hash),
   FOREIGN KEY (section_id) REFERENCES qa_sections(id) ON DELETE CASCADE
 );
@@ -70,7 +72,6 @@ CREATE TABLE IF NOT EXISTS testcases (
   priority ENUM('LOWEST', 'LOW', 'MEDIUM', 'HIGH', 'HIGHEST', 'CRITICAL') NULL, -- PRIORITY field
   test_group ENUM('GENERAL', 'CUSTOM') NULL, -- Main test group (GENERAL or CUSTOM)
   functionality VARCHAR(255) NULL, -- Functionality group within test_group
-  subcategory VARCHAR(255) NULL, -- Subcategory from parent page hierarchy
   order_index INT NOT NULL DEFAULT 0, -- Order within checklist
   config_id INT NULL, -- Reference to config
   qa_auto_coverage VARCHAR(255) NULL, -- QA AUTO COVERAGE field
@@ -81,7 +82,6 @@ CREATE TABLE IF NOT EXISTS testcases (
   INDEX idx_testcases_checklist (checklist_id),
   INDEX idx_testcases_test_group (test_group),
   INDEX idx_testcases_functionality (functionality),
-  INDEX idx_testcases_subcategory (subcategory),
   INDEX idx_testcases_priority (priority),
   INDEX idx_testcases_config (config_id),
   INDEX idx_testcases_order (checklist_id, order_index),
@@ -159,7 +159,6 @@ SELECT
     t.screenshot,
     t.priority,
     t.functionality,
-    t.subcategory,
     t.order_index,
     t.qa_auto_coverage,
     c.title as checklist_title,

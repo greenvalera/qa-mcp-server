@@ -157,7 +157,6 @@ async def qa_search_testcases(
                 "priority": testcase.priority.value if testcase.priority else None,
                 "test_group": testcase.test_group.value if testcase.test_group else None,
                 "functionality": testcase.functionality,
-                "subcategory": testcase.subcategory,
                 "checklist_id": testcase.checklist_id,
                 "checklist_title": result['checklist_title'],
                 "config_name": result['config_name'],
@@ -240,7 +239,6 @@ async def qa_search_testcases_text(
                 "priority": testcase.priority.value if testcase.priority else None,
                 "test_group": testcase.test_group.value if testcase.test_group else None,
                 "functionality": testcase.functionality,
-                "subcategory": testcase.subcategory,
                 "checklist_id": testcase.checklist_id,
                 "checklist_title": testcase.checklist.title if testcase.checklist else None,
                 "section_title": testcase.checklist.section.title if testcase.checklist and testcase.checklist.section else None
@@ -592,7 +590,6 @@ async def qa_get_testcases(
     checklist_id: Optional[int] = None,
     test_group: Optional[str] = None,
     functionality: Optional[str] = None,
-    subcategory: Optional[str] = None,
     priority: Optional[str] = None,
     limit: int = 100,
     offset: int = 0
@@ -628,7 +625,6 @@ async def qa_get_testcases(
             checklist_id=checklist_id,
             test_group=test_group,
             functionality=functionality,
-            subcategory=subcategory,
             priority=priority,
             limit=limit,
             offset=offset
@@ -644,7 +640,6 @@ async def qa_get_testcases(
                 "priority": testcase.priority.value if testcase.priority else None,
                 "test_group": testcase.test_group.value if testcase.test_group else None,
                 "functionality": testcase.functionality,
-                "subcategory": testcase.subcategory,
                 "order_index": testcase.order_index,
                 "checklist_id": testcase.checklist_id,
                 "config_id": testcase.config_id,
@@ -662,7 +657,6 @@ async def qa_get_testcases(
                 "checklist_id": checklist_id,
                 "test_group": test_group,
                 "functionality": functionality,
-                "subcategory": subcategory,
                 "priority": priority
             }
         }

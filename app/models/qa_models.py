@@ -125,6 +125,7 @@ class Checklist(Base):
     url = Column(String(1024), nullable=False)
     space_key = Column(String(64), nullable=False, index=True)
     section_id = Column(Integer, ForeignKey('qa_sections.id', ondelete="CASCADE"), nullable=False)
+    subcategory = Column(String(255), nullable=True, index=True)  # Subcategory from parent page hierarchy
     content_hash = Column(CHAR(64), nullable=False, index=True)
     version = Column(Integer, nullable=True)
     created_at = Column(TIMESTAMP, default=func.current_timestamp())
@@ -170,7 +171,6 @@ class TestCase(Base):
     priority = Column(Enum(Priority), nullable=True, index=True)
     test_group = Column(Enum(TestGroup), nullable=True, index=True)  # GENERAL or CUSTOM
     functionality = Column(String(255), nullable=True, index=True)  # Functionality group within test_group
-    subcategory = Column(String(255), nullable=True, index=True)  # Subcategory from parent page hierarchy
     order_index = Column(Integer, nullable=False, default=0)
     config_id = Column(Integer, ForeignKey('configs.id', ondelete="SET NULL"), nullable=True)
     qa_auto_coverage = Column(String(255), nullable=True)

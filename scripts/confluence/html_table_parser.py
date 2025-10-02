@@ -93,17 +93,6 @@ class EnhancedConfluenceTableParser:
             'authorization': ['авторизация', 'authorization', 'авторизація']
         }
         
-        # Розширені ключові слова для підкатегорій
-        self.subcategory_keywords = {
-            'UI Elements': ['кнопка', 'форма', 'поле', 'button', 'form', 'field', 'элемент', 'element'],
-            'Validation': ['валидация', 'validation', 'сработала', 'проверка', 'check'],
-            'Navigation': ['перейти', 'переход', 'navigate', 'redirect', 'клик', 'click'],
-            'Data Input': ['ввести', 'заполн', 'input', 'fill', 'ввод', 'введення'],
-            'Visual Check': ['отображ', 'проверить', 'display', 'check', 'визуальн', 'visual'],
-            'API Testing': ['api', 'запрос', 'request', 'response', 'endpoint'],
-            'Performance': ['производительность', 'performance', 'скорость', 'speed'],
-            'Security': ['безопасность', 'security', 'защита', 'protection']
-        }
     
     def parse_testcases_from_html(self, html_content: str) -> List[Dict[str, Any]]:
         """
@@ -306,46 +295,26 @@ class EnhancedConfluenceTableParser:
     def _is_subsection_header(self, cells: List[Tag]) -> bool:
         """Перевіряє чи є рядок підзаголовком або розділовим рядком"""
         
-        # Перевіряємо colspan (рядки що займають всю ширину таблиці)
+        # Згідно з правилами: будь-який рядок з colspan, який займає всю ширину таблиці, є розділовим рядком
         for cell in cells:
             colspan = cell.get('colspan')
             if colspan and int(colspan) >= 3:
-                text = cell.get_text(strip=True).lower()
-                subsection_keywords = ['pre condition', 'steps', 'precondition', 'условие', 'шаги']
-                if any(keyword in text for keyword in subsection_keywords):
-                    return True
+                text = cell.get_text(strip=True)
+                if text:
+                    # Перевіряємо чи це не секція (GENERAL/CUSTOM)
+                    text_upper = text.upper()
+                    if not self._is_section_name(text_upper):
+                        return True
         
-        # Перевіряємо чи це розділовий рядок (має тільки один заповнений стовпець або colspan)
+        # Перевіряємо чи це розділовий рядок (має тільки один заповнений стовпець)
         if len(cells) >= 2:
-            # Перевіряємо чи є комірка з colspan (розділовий рядок)
-            for cell in cells:
-                if cell.get('colspan'):
-                    text = cell.get_text(strip=True)
-                    if text:
-                        functionality_keywords = [
-                            'подписка', 'трекинг', 'уведомления', 'тайминги', 'route', 
-                            'addfirstfavorite', 'openprofile', 'addlike', 'sendsecondmessage',
-                            'windows', 'macos', 'кастомных', 'попапов', 'бейдж', 'счетчик',
-                            'получение', 'прочтение', 'удаление', 'пуш', 'уведомлений'
-                        ]
-                        text_lower = text.lower()
-                        if any(keyword in text_lower for keyword in functionality_keywords):
-                            return True
-            
-            # Перевіряємо чи перший стовпець заповнений, а решта порожні
             first_cell_text = cells[0].get_text(strip=True)
             other_cells_empty = all(not cell.get_text(strip=True) for cell in cells[1:])
             
             if first_cell_text and other_cells_empty:
-                # Додаткові перевірки для розділових рядків
-                functionality_keywords = [
-                    'подписка', 'трекинг', 'уведомления', 'тайминги', 'route', 
-                    'addfirstfavorite', 'openprofile', 'addlike', 'sendsecondmessage',
-                    'windows', 'macos', 'кастомных', 'попапов', 'бейдж', 'счетчик',
-                    'получение', 'прочтение', 'удаление', 'пуш', 'уведомлений'
-                ]
-                text_lower = first_cell_text.lower()
-                if any(keyword in text_lower for keyword in functionality_keywords):
+                # Перевіряємо чи це не секція (GENERAL/CUSTOM)
+                text_upper = first_cell_text.upper()
+                if not self._is_section_name(text_upper):
                     return True
         
         return False
@@ -369,33 +338,9 @@ class EnhancedConfluenceTableParser:
         if not text:
             return None
         
-        # Мапінг розділових рядків на функціональності
-        functionality_mapping = {
-            'подписка - windows': 'Подписка - Windows',
-            'подписка - macos': 'Подписка - MacOS', 
-            'трекинг': 'Трекинг',
-            'уведомления': 'Уведомления',
-            'тайминги появления попапов': 'Тайминги',
-            'route': 'Route',
-            'addfirstfavorite': 'AddFirstFavorite',
-            'openprofile': 'OpenProfile',
-            'addlike': 'AddLike',
-            'sendsecondmessage': 'SendSecondMessage',
-            'работа кастомных попапов на macos': 'Кастомные попапы MacOS',
-            # Додаткові варіанти
-            'подписка': 'Подписка',
-            'windows': 'Подписка - Windows',
-            'macos': 'Подписка - MacOS',
-            'кастомных попапов': 'Кастомные попапы',
-            'попапов': 'Попапы'
-        }
-        
-        text_lower = text.lower()
-        for key, value in functionality_mapping.items():
-            if key in text_lower:
-                return value
-        
-        # Якщо не знайшли точну відповідність, повертаємо оригінальний текст
+        # Повертаємо точне строкове значення розділового рядка без інтерпретації
+        # Згідно з правилами: "Значення такого розділового поля треба використовувати, 
+        # як значення поля Functionality при збереженні запису тесткейсу"
         return text
     
     def _is_likely_divider_row(self, step_text: str) -> bool:
@@ -471,7 +416,6 @@ class EnhancedConfluenceTableParser:
                 'priority': priority,
                 'test_group': test_group,
                 'functionality': functionality,
-                'subcategory': self._extract_subcategory(step),
                 'config': config.strip() if config else None,
                 'qa_auto_coverage': qa_coverage.strip() if qa_coverage else None,
                 'screenshot': screenshot.strip() if screenshot else None,
@@ -595,16 +539,6 @@ class EnhancedConfluenceTableParser:
         
         return None
     
-    def _extract_subcategory(self, step: str) -> Optional[str]:
-        """Витягує підкатегорію на основі кроку"""
-        
-        step_lower = step.lower()
-        
-        for subcat, keywords in self.subcategory_keywords.items():
-            if any(keyword in step_lower for keyword in keywords):
-                return subcat
-        
-        return None
 
 
 def main():

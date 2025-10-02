@@ -412,25 +412,26 @@ class UnifiedConfluenceLoader:
                 click.echo(f"  ⚠️ AI аналіз не спрацював: {e}")
                 self._log_parser_stats("AI", 0, ai_duration, False, str(e))
             
-            # 3. Об'єднуємо результати
+            # 3. Об'єднуємо результати (логіка з extract_checklist.py)
             merge_start_time = datetime.now()
             all_testcases = []
             
+            # Додаємо HTML тесткейси (пріоритет)
             if len(html_testcases) > 10:  # Якщо HTML знайшов достатньо
-                click.echo(f"  🎯 Використовуємо HTML результати як основні")
+                click.echo(f"  🎯 Використовуємо HTML результати як основні: {len(html_testcases)} тесткейсів")
                 all_testcases.extend(html_testcases)
                 # Додаємо AI результати як доповнення
                 all_testcases.extend(ai_testcases)
                 primary_method = "HTML"
             else:
-                click.echo(f"  🤖 Використовуємо AI результати як основні")
+                click.echo(f"  🤖 Використовуємо AI результати як основні: {len(ai_testcases)} тесткейсів")
                 all_testcases.extend(ai_testcases)
                 # Додаємо HTML результати як доповнення
                 all_testcases.extend(html_testcases)
                 primary_method = "AI"
             
-            # Видаляємо дублікати
-            unique_testcases = self._remove_duplicates(all_testcases)
+            # Видаляємо дублікати (використовуємо покращену логіку з extract_checklist.py)
+            unique_testcases = self._remove_duplicates_enhanced(all_testcases)
             merge_duration = (datetime.now() - merge_start_time).total_seconds()
             duplicates_removed = len(all_testcases) - len(unique_testcases)
             
@@ -463,6 +464,9 @@ class UnifiedConfluenceLoader:
                 # Create checklist
                 content_hash = hashlib.md5(content.encode()).hexdigest()
                 
+                # Determine subcategory from page hierarchy
+                subcategory = self._determine_subcategory(page_content, title)
+                
                 checklist = Checklist(
                     confluence_page_id=page_id,
                     title=title,
@@ -471,6 +475,7 @@ class UnifiedConfluenceLoader:
                     url=f"https://confluence.togethernetworks.com/pages/{page_id}",
                     space_key=page_content.get('space', 'QMT'),
                     section_id=section.id,
+                    subcategory=subcategory,
                     content_hash=content_hash,
                     version=page_content.get('version', 1)
                 )
@@ -506,6 +511,11 @@ class UnifiedConfluenceLoader:
                         elif isinstance(screenshot, list):
                             screenshot = None
                         
+                        # Обмежуємо довжину qa_auto_coverage
+                        qa_auto_coverage = testcase_data.get('qa_auto_coverage')
+                        if qa_auto_coverage and len(qa_auto_coverage) > 255:
+                            qa_auto_coverage = qa_auto_coverage[:252] + "..."
+                        
                         testcase = TestCase(
                             checklist_id=checklist.id,
                             step=testcase_data.get('step', 'No step defined'),
@@ -514,10 +524,9 @@ class UnifiedConfluenceLoader:
                             priority=priority,
                             test_group=testcase_data.get('test_group'),
                             functionality=testcase_data.get('functionality'),
-                            subcategory=testcase_data.get('subcategory'),
                             order_index=testcase_data.get('order_index', 0),
                             config_id=config_id,
-                            qa_auto_coverage=testcase_data.get('qa_auto_coverage')
+                            qa_auto_coverage=qa_auto_coverage
                         )
                         session.add(testcase)
                         testcases_created += 1
@@ -611,6 +620,34 @@ class UnifiedConfluenceLoader:
                 if existing_index is not None:
                     if self._is_better_testcase(testcase, unique_testcases[existing_index]):
                         unique_testcases[existing_index] = testcase
+        
+        return unique_testcases
+    
+    def _remove_duplicates_enhanced(self, testcases: List[Dict]) -> List[Dict]:
+        """Покращений метод видалення дублікатів з урахуванням різних джерел (з extract_checklist.py)."""
+        
+        unique_testcases = []
+        seen_steps = set()
+        
+        for testcase in testcases:
+            step = (testcase.get('step') or '').strip()
+            
+            if not step or len(step) < 10:
+                continue  # Пропускаємо занадто короткі кроки
+            
+            # Створюємо нормалізований ключ для порівняння
+            normalized_step = self._normalize_step_for_comparison(step)
+            
+            # Перевіряємо на дублікат
+            is_duplicate = False
+            for seen_step in seen_steps:
+                if self._calculate_similarity(normalized_step, seen_step) > 0.85:
+                    is_duplicate = True
+                    break
+            
+            if not is_duplicate:
+                seen_steps.add(normalized_step)
+                unique_testcases.append(testcase)
         
         return unique_testcases
     
@@ -796,6 +833,41 @@ class UnifiedConfluenceLoader:
             click.echo(f"⏭️ Пропущено чеклістів: {self.progress.skipped_checklists}")
         if self.load_vector:
             click.echo(f"🔍 Створено чанків: {self.progress.chunks_created}")
+    
+    def _determine_subcategory(self, page_content: Dict[str, Any], title: str) -> Optional[str]:
+        """
+        Визначає subcategory на основі ієрархії сторінок Confluence.
+        Subcategory - це тайтл батьківського документа, який не містить таблицю тесткейсів,
+        але є батьківським для документів з тесткейсами.
+        """
+        try:
+            # Отримуємо інформацію про батьківську сторінку
+            parent_info = page_content.get('parent', {})
+            if not parent_info:
+                return None
+            
+            parent_title = parent_info.get('title', '')
+            if not parent_title:
+                return None
+            
+            # Перевіряємо, чи батьківська сторінка не є секцією (Checklist WEB, Checklist MOB)
+            if parent_title.startswith('Checklist '):
+                return None
+            
+            # Перевіряємо, чи батьківська сторінка не є кореневою секцією
+            if parent_title in ['QA', 'Quality Assurance', 'Testing']:
+                return None
+            
+            # Якщо батьківська сторінка має осмислену назву, використовуємо її як subcategory
+            # Обмежуємо довжину до 255 символів
+            if len(parent_title) > 255:
+                parent_title = parent_title[:252] + "..."
+            
+            return parent_title
+            
+        except Exception as e:
+            # Якщо виникла помилка, повертаємо None
+            return None
     
     def close(self):
         """Clean up resources."""

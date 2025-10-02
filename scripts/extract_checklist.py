@@ -57,6 +57,15 @@ class UniversalChecklistExtractor:
                         'page_id': checklist.confluence_page_id
                     }
             
+            # Спробуємо як confluence_page_id
+            checklist = session.query(Checklist).filter(Checklist.confluence_page_id == identifier).first()
+            if checklist:
+                return {
+                    'id': checklist.id,
+                    'title': checklist.title,
+                    'page_id': checklist.confluence_page_id
+                }
+            
             # Спробуємо як назву (точне співпадіння)
             checklist = session.query(Checklist).filter(Checklist.title == identifier).first()
             if checklist:
@@ -486,11 +495,6 @@ class UniversalChecklistExtractor:
                 if functionality and len(functionality) > 255:  # Обмежуємо до 255 символів
                     functionality = functionality[:252] + "..."
                 
-                # Обмежуємо довжину subcategory
-                subcategory = testcase_data.get('subcategory')
-                if subcategory and len(subcategory) > 255:  # Обмежуємо до 255 символів
-                    subcategory = subcategory[:252] + "..."
-                
                 # Створюємо тесткейс
                 testcase = TestCase(
                     checklist_id=checklist_id,
@@ -500,7 +504,6 @@ class UniversalChecklistExtractor:
                     priority=priority,
                     test_group=testcase_data.get('test_group', 'GENERAL'),
                     functionality=functionality,
-                    subcategory=subcategory,
                     order_index=testcase_data.get('order_index', i),
                     config_id=config_id,
                     qa_auto_coverage=qa_auto_coverage
