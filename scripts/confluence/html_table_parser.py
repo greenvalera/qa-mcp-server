@@ -142,6 +142,7 @@ class EnhancedConfluenceTableParser:
         testcases = []
         current_section = "GENERAL"
         current_functionality = None
+        previous_step = None
         
         for i, row in enumerate(rows[1:], 1):  # Пропускаємо заголовок
             cells = row.find_all(['td', 'th'])
@@ -151,6 +152,7 @@ class EnhancedConfluenceTableParser:
                 section_info = self._extract_section_info(cells)
                 current_section = section_info['section']
                 current_functionality = section_info['functionality']
+                previous_step = None  # Скидаємо попередній step при зміні секції
                 continue
             
             # Перевіряємо чи це розділовий рядок (підзаголовок)
@@ -159,12 +161,15 @@ class EnhancedConfluenceTableParser:
                 divider_functionality = self._extract_functionality_from_divider_row(cells)
                 if divider_functionality:
                     current_functionality = divider_functionality
+                previous_step = None  # Скидаємо попередній step при зміні функціональності
                 continue
             
             # Парсимо тесткейс
-            testcase = self._parse_testcase_row(cells, schema, current_section, current_functionality)
+            testcase = self._parse_testcase_row(cells, schema, current_section, current_functionality, previous_step)
             if testcase:
                 testcases.append(testcase)
+                # Оновлюємо попередній step для наступного рядка
+                previous_step = testcase.get('step')
         
         return testcases
     
@@ -266,7 +271,7 @@ class EnhancedConfluenceTableParser:
                 section = text
             elif self._is_section_name(text):
                 # Спробуємо визначити функціональність з назви секції
-                functionality = self._extract_functionality_from_text(text)
+                functionality = text  # Використовуємо текст як функціональність
         
         return {
             'section': section,
@@ -332,7 +337,8 @@ class EnhancedConfluenceTableParser:
         return False
     
     def _parse_testcase_row(self, cells: List[Tag], schema: Dict[str, Any], 
-                           current_section: str, current_functionality: str) -> Optional[Dict[str, Any]]:
+                           current_section: str, current_functionality: str, 
+                           previous_step: str = None) -> Optional[Dict[str, Any]]:
         """Парсить рядок тесткейсу"""
         
         if len(cells) < 2:
@@ -347,11 +353,21 @@ class EnhancedConfluenceTableParser:
             if not step or not step.strip():
                 return None
             
-            # Додаткова перевірка: якщо expected_result порожній, це може бути розділовий рядок
-            if not expected or not expected.strip():
-                # Перевіряємо чи це не розділовий рядок
-                if self._is_likely_divider_row(step):
-                    return None
+            # НОВА ЛОГІКА: Обробка об'єднаних клітинок
+            # Якщо expected_result порожній, але є текст в step,
+            # то цей текст має бути expected_result, а step - з попереднього рядка
+            if (not expected or not expected.strip()) and step and step.strip():
+                if previous_step:
+                    # Використовуємо step з попереднього рядка
+                    actual_step = previous_step
+                    actual_expected = step.strip()
+                else:
+                    # Якщо немає попереднього step, залишаємо як є
+                    actual_step = step.strip()
+                    actual_expected = ""
+            else:
+                actual_step = step.strip()
+                actual_expected = expected.strip() if expected else ""
             
             # Витягуємо інші поля
             priority = self._extract_priority_from_cell(cells, schema)
@@ -360,14 +376,14 @@ class EnhancedConfluenceTableParser:
             screenshot = self._extract_cell_content(cells, schema, 'screenshot')
             
             # Визначаємо функціональність
-            functionality = current_functionality or self._extract_functionality(step, config)
+            functionality = current_functionality or self._extract_functionality(actual_step, config)
             
             # Визначаємо test_group
             test_group = "CUSTOM" if current_section == "CUSTOM" else "GENERAL"
             
             return {
-                'step': step.strip(),
-                'expected_result': expected.strip() if expected else "",
+                'step': actual_step,
+                'expected_result': actual_expected,
                 'priority': priority,
                 'test_group': test_group,
                 'functionality': functionality,
