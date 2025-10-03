@@ -73,25 +73,6 @@ class EnhancedConfluenceTableParser:
             }
         }
         
-        # Розширені ключові слова для функціональності
-        self.functionality_keywords = {
-            'registration': ['регистр', 'зарегистр', 'registration', 'signup', 'sign up'],
-            'validation': ['валидац', 'validation', 'сработала', 'проверка', 'check'],
-            'navigation': ['перейти', 'кликнуть', 'navigate', 'click', 'переход'],
-            'form': ['форма', 'поле', 'form', 'field', 'input'],
-            'email': ['email', 'мейл', 'почта', 'mail'],
-            'password': ['пароль', 'password', 'pwd'],
-            'location': ['локация', 'location', 'live in', 'место'],
-            'logo': ['логотип', 'фавикон', 'logo', 'favicon'],
-            'search': ['поиск', 'search', 'найти', 'find'],
-            'profile': ['профиль', 'profile', 'профіль'],
-            'settings': ['настройки', 'settings', 'налаштування'],
-            'notification': ['уведомление', 'notification', 'повідомлення'],
-            'upload': ['загрузка', 'upload', 'завантаження'],
-            'download': ['скачивание', 'download', 'завантаження'],
-            'authentication': ['авторизация', 'authentication', 'автентифікація'],
-            'authorization': ['авторизация', 'authorization', 'авторизація']
-        }
         
     
     def parse_testcases_from_html(self, html_content: str) -> List[Dict[str, Any]]:
@@ -344,36 +325,10 @@ class EnhancedConfluenceTableParser:
         return text
     
     def _is_likely_divider_row(self, step_text: str) -> bool:
-        """Перевіряє чи схожий текст на розділовий рядок"""
+        """Перевіряє чи схожий текст на розділовий рядок - видалено логіку по ключовим словам"""
         
-        step_lower = step_text.lower()
-        
-        # Ключові слова що вказують на розділові рядки
-        divider_keywords = [
-            'подписка - windows',
-            'подписка - macos', 
-            'трекинг',
-            'уведомления',
-            'тайминги появления попапов',
-            'route',
-            'addfirstfavorite',
-            'openprofile',
-            'addlike',
-            'sendsecondmessage',
-            'работа кастомных попапов на macos',
-            'бейдж со счетчиком',
-            'получение уведомлений',
-            'прочтение уведомлений',
-            'удаление уведомлений',
-            'кастомные попапы'
-        ]
-        
-        # Якщо текст короткий і містить ключові слова
-        if len(step_text.strip()) < 50:
-            for keyword in divider_keywords:
-                if keyword in step_lower:
-                    return True
-        
+        # Видалено всю логіку визначення по ключовим словам
+        # Тепер будь-який рядок, який не є GENERAL/CUSTOM, вважається розділовим
         return False
     
     def _parse_testcase_row(self, cells: List[Tag], schema: Dict[str, Any], 
@@ -389,7 +344,7 @@ class EnhancedConfluenceTableParser:
             expected = self._extract_cell_content(cells, schema, 'expected')
             
             # Перевіряємо чи це валідний тесткейс
-            if not step or len(step.strip()) < 10:
+            if not step or not step.strip():
                 return None
             
             # Додаткова перевірка: якщо expected_result порожній, це може бути розділовий рядок
@@ -476,68 +431,12 @@ class EnhancedConfluenceTableParser:
         return None
     
     def _extract_functionality(self, step: str, config: str) -> Optional[str]:
-        """Витягує функціональність на основі кроку та конфігу"""
+        """Витягує функціональність на основі кроку та конфігу - спрощено, без ключових слів"""
         
-        step_lower = step.lower()
-        config_lower = config.lower() if config else ""
-        combined_text = f"{step_lower} {config_lower}"
-        
-        # Спеціальна логіка для Navigation - перевіряємо чи це дійсно навігаційний тесткейс
-        if self._is_navigation_testcase(step_lower):
-            return "Navigation"
-        
-        # Перевіряємо інші функціональності
-        for func, keywords in self.functionality_keywords.items():
-            if func == 'navigation':  # Пропускаємо navigation, вже обробили
-                continue
-            if any(keyword in combined_text for keyword in keywords):
-                return func.title()
-        
+        # Видалено логіку визначення функціональності по ключовим словам
+        # Функціональність тепер визначається тільки з розділових рядків
         return None
     
-    def _is_navigation_testcase(self, step_lower: str) -> bool:
-        """Перевіряє чи є тесткейс дійсно навігаційним"""
-        
-        # Ключові фрази що вказують на навігаційні тесткейси
-        navigation_phrases = [
-            'переход на',
-            'перейти на страницу',
-            'кликнуть на кнопку',
-            'кликнуть на пункт',
-            'кликнуть на иконку',
-            'тапнуть кнопку',
-            'тапнуть по',
-            'переход по кнопке',
-            'переход с',
-            'переход на платежку'
-        ]
-        
-        # Якщо є одна з цих фраз - це навігаційний тесткейс
-        for phrase in navigation_phrases:
-            if phrase in step_lower:
-                return True
-        
-        # Додаткові перевірки для специфічних навігаційних слів
-        navigation_words = ['кликнуть', 'переход', 'перейти']
-        navigation_contexts = ['кнопку', 'пункт', 'иконку', 'страницу', 'платежку', 'профиль', 'меню']
-        
-        # Перевіряємо чи є навігаційні слова в контексті навігації
-        has_navigation_word = any(word in step_lower for word in navigation_words)
-        has_navigation_context = any(context in step_lower for context in navigation_contexts)
-        
-        # Тільки якщо є і навігаційне слово і контекст
-        return has_navigation_word and has_navigation_context
-    
-    def _extract_functionality_from_text(self, text: str) -> Optional[str]:
-        """Витягує функціональність з тексту"""
-        
-        text_lower = text.lower()
-        
-        for func, keywords in self.functionality_keywords.items():
-            if any(keyword in text_lower for keyword in keywords):
-                return func.title()
-        
-        return None
     
 
 
