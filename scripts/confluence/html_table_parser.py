@@ -8,6 +8,8 @@ import re
 from typing import List, Dict, Any, Optional, Tuple
 from bs4 import BeautifulSoup, Tag
 import logging
+from datetime import datetime
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +24,8 @@ class EnhancedConfluenceTableParser:
             'LOW': 'LOW',
             'CRITICAL': 'CRITICAL'
         }
+        # Флаг для відстеження репортування Functionality header is absent
+        self._functionality_header_reported = False
         
         # Схема розпізнавання на основі аналізу реальних структур
         self.table_schemas = {
@@ -73,13 +77,52 @@ class EnhancedConfluenceTableParser:
             }
         }
         
-        
-    
-    def parse_testcases_from_html(self, html_content: str) -> List[Dict[str, Any]]:
+    def report_checklist_error(self, checklist_name: str, row_number: int, step: str, alert_message: str):
         """
-        Витягує тесткейси з HTML контенту Confluence сторінки
+        Записує помилку чекліста у файл ai_temp/checklist_error_report.txt
+        
+        Args:
+            checklist_name: Назва чекліста
+            row_number: Номер рядка в HTML таблиці
+            step: Step (обрізаний до 20 символів)
+            alert_message: Повідомлення про помилку
         """
         try:
+            # Створюємо директорію ai_temp якщо не існує
+            ai_temp_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'ai_temp')
+            os.makedirs(ai_temp_dir, exist_ok=True)
+            
+            # Шлях до файлу репорту
+            report_file = os.path.join(ai_temp_dir, 'checklist_error_report.txt')
+            
+            # Обрізаємо step до 20 символів
+            step_truncated = step[:20] + "..." if len(step) > 20 else step
+            
+            # Формуємо запис
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            log_entry = f"[{timestamp}] - [{checklist_name}] - [{alert_message}] - [{row_number}] - [{step_truncated}]\n"
+            
+            # Записуємо у файл
+            with open(report_file, 'a', encoding='utf-8') as f:
+                f.write(log_entry)
+                
+            logger.warning(f"Checklist error reported: {checklist_name} - {alert_message}")
+            
+        except Exception as e:
+            logger.error(f"Failed to write error report: {e}")
+    
+    def parse_testcases_from_html(self, html_content: str, checklist_name: str = "Unknown") -> List[Dict[str, Any]]:
+        """
+        Витягує тесткейси з HTML контенту Confluence сторінки
+        
+        Args:
+            html_content: HTML контент сторінки
+            checklist_name: Назва чекліста для репортування помилок
+        """
+        try:
+            # Скидаємо флаг репортування для нового чекліста
+            self._functionality_header_reported = False
+            
             soup = BeautifulSoup(html_content, 'html.parser')
             testcases = []
             
@@ -87,7 +130,7 @@ class EnhancedConfluenceTableParser:
             testcase_tables = self._find_testcase_tables(soup)
             
             for table in testcase_tables:
-                table_testcases = self._parse_table(table)
+                table_testcases = self._parse_table(table, checklist_name)
                 testcases.extend(table_testcases)
             
             logger.info(f"Витягнуто {len(testcases)} тесткейсів з HTML")
@@ -126,7 +169,7 @@ class EnhancedConfluenceTableParser:
         
         return any(col in header_text for col in key_columns)
     
-    def _parse_table(self, table: Tag) -> List[Dict[str, Any]]:
+    def _parse_table(self, table: Tag, checklist_name: str = "Unknown") -> List[Dict[str, Any]]:
         """Парсить одну таблицю"""
         
         rows = table.find_all('tr')
@@ -164,8 +207,8 @@ class EnhancedConfluenceTableParser:
                 previous_step = None  # Скидаємо попередній step при зміні функціональності
                 continue
             
-            # Парсимо тесткейс
-            testcase = self._parse_testcase_row(cells, schema, current_section, current_functionality, previous_step)
+            # Парсимо тесткейс з репортуванням помилок
+            testcase = self._parse_testcase_row(cells, schema, current_section, current_functionality, previous_step, checklist_name, i)
             if testcase:
                 testcases.append(testcase)
                 # Оновлюємо попередній step для наступного рядка
@@ -338,7 +381,8 @@ class EnhancedConfluenceTableParser:
     
     def _parse_testcase_row(self, cells: List[Tag], schema: Dict[str, Any], 
                            current_section: str, current_functionality: str, 
-                           previous_step: str = None) -> Optional[Dict[str, Any]]:
+                           previous_step: str = None, checklist_name: str = "Unknown", 
+                           row_number: int = 0) -> Optional[Dict[str, Any]]:
         """Парсить рядок тесткейсу"""
         
         if len(cells) < 2:
@@ -375,8 +419,35 @@ class EnhancedConfluenceTableParser:
             qa_coverage = self._extract_cell_content(cells, schema, 'qa_coverage')
             screenshot = self._extract_cell_content(cells, schema, 'screenshot')
             
-            # Визначаємо функціональність
-            functionality = current_functionality or self._extract_functionality(actual_step, config)
+            # РЕПОРТУВАННЯ ПОМИЛОК
+            
+            # 1) Перевіряємо відсутність Priority
+            if not priority:
+                self.report_checklist_error(
+                    checklist_name, 
+                    row_number, 
+                    actual_step, 
+                    "Priority is absent"
+                )
+                priority = None  # Проставляємо Priority None згідно з ТЗ
+            
+            # 2) Перевіряємо відсутність заголовка Functionality
+            # Якщо під заголовком General/Custom відразу йдуть тесткейси без підзаголовка Functionality
+            if current_section in ["GENERAL", "CUSTOM"] and not current_functionality:
+                # Репортуємо тільки один раз на чекліст для першого тесткейсу
+                if not self._functionality_header_reported:
+                    self.report_checklist_error(
+                        checklist_name, 
+                        row_number, 
+                        actual_step, 
+                        "Functionality header is absent"
+                    )
+                    self._functionality_header_reported = True
+                # Проставляємо Functionality = None згідно з ТЗ
+                functionality = None
+            else:
+                # Визначаємо функціональність
+                functionality = current_functionality or self._extract_functionality(actual_step, config)
             
             # Визначаємо test_group
             test_group = "CUSTOM" if current_section == "CUSTOM" else "GENERAL"

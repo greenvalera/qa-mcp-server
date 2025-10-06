@@ -1,0 +1,8 @@
+[2025-10-06 12:12:26] - [WEB: Age Verification] - [Functionality header is absent] - [2] - [Регистрация юзера на...]
+[2025-10-06 12:12:26] - [WEB: Age Verification] - [Priority is absent] - [36] - [- Неверифицированным...]
+[2025-10-06 12:12:26] - [WEB: Age Verification] - [Priority is absent] - [37] - [- Неверифицированным...]
+[2025-10-06 12:12:26] - [WEB: Age Verification] - [Priority is absent] - [45] - [Юзер зарегистрирован...]
+[2025-10-06 12:12:26] - [WEB: Age Verification] - [Priority is absent] - [46] - [Перейти по линке из ...]
+[2025-10-06 12:12:26] - [WEB: Age Verification] - [Priority is absent] - [47] - [PhotoUpload Из преды...]
+[2025-10-06 12:12:26] - [WEB: Age Verification] - [Priority is absent] - [48] - [Юзер зарегистрирован...]
+[2025-10-06 12:12:26] - [WEB: Age Verification] - [Priority is absent] - [49] - [Попап Under Developm...]

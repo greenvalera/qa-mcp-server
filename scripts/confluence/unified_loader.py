@@ -370,7 +370,7 @@ class UnifiedConfluenceLoader:
             # Використовуємо тільки HTML парсер
             html_start_time = datetime.now()
             try:
-                html_testcases = self.html_parser.parse_testcases_from_html(content)
+                html_testcases = self.html_parser.parse_testcases_from_html(content, title)
                 html_duration = (datetime.now() - html_start_time).total_seconds()
                 click.echo(f"  🔍 HTML парсер знайшов {len(html_testcases)} тесткейсів за {html_duration:.2f}с")
                 
