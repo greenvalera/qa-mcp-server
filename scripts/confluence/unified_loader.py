@@ -409,13 +409,18 @@ class UnifiedConfluenceLoader:
                 # Determine subcategory from page hierarchy
                 subcategory = self._determine_subcategory(page_content, title)
                 
+                # Формуємо правильний URL
+                space_key = page_content.get('space', 'QMT')
+                confluence_url = self._build_confluence_url(page_id, space_key, title)
+                
                 checklist = Checklist(
+                    id=page_id,  # Використовуємо confluence_page_id як primary key
                     confluence_page_id=page_id,
                     title=title,
                     description=title,  # Використовуємо title як description
                     additional_content=None,
-                    url=f"https://confluence.togethernetworks.com/pages/{page_id}",
-                    space_key=page_content.get('space', 'QMT'),
+                    url=confluence_url,
+                    space_key=space_key,
                     section_id=section.id,
                     subcategory=subcategory,
                     content_hash=content_hash,
@@ -620,6 +625,16 @@ class UnifiedConfluenceLoader:
             click.echo(f"⏭️ Пропущено чеклістів: {self.progress.skipped_checklists}")
         if self.load_vector:
             click.echo(f"🔍 Створено чанків: {self.progress.chunks_created}")
+    
+    def _build_confluence_url(self, page_id: str, space_key: str, title: str) -> str:
+        """Побудова правильного URL для Confluence сторінки."""
+        # URL формат: https://confluence.togethernetworks.com/spaces/{space}/pages/{page_id}/{title}
+        # Title повинен бути URL-encoded з заміною пробілів на +
+        import urllib.parse
+        # Спочатку замінюємо пробіли на +, потім кодуємо інші спеціальні символи
+        title_with_plus = title.replace(' ', '+')
+        encoded_title = urllib.parse.quote(title_with_plus, safe='+')
+        return f"https://confluence.togethernetworks.com/spaces/{space_key}/pages/{page_id}/{encoded_title}"
     
     def _determine_subcategory(self, page_content: Dict[str, Any], title: str) -> Optional[str]:
         """

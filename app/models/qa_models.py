@@ -32,7 +32,7 @@ class TestGroup(PyEnum):
 checklist_configs = Table(
     'checklist_configs',
     Base.metadata,
-    Column('checklist_id', Integer, ForeignKey('checklists.id', ondelete="CASCADE"), primary_key=True),
+    Column('checklist_id', String(64), ForeignKey('checklists.id', ondelete="CASCADE"), primary_key=True),
     Column('config_id', Integer, ForeignKey('configs.id', ondelete="CASCADE"), primary_key=True),
     Column('created_at', TIMESTAMP, default=func.current_timestamp())
 )
@@ -117,7 +117,7 @@ class Checklist(Base):
     
     __tablename__ = "checklists"
     
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(String(64), primary_key=True)  # Використовуємо confluence_page_id як primary key
     confluence_page_id = Column(String(64), nullable=False, unique=True, index=True)
     title = Column(String(512), nullable=False, index=True)
     description = Column(Text, nullable=True)
@@ -164,7 +164,7 @@ class TestCase(Base):
     __tablename__ = "testcases"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    checklist_id = Column(Integer, ForeignKey('checklists.id', ondelete="CASCADE"), nullable=False)
+    checklist_id = Column(String(64), ForeignKey('checklists.id', ondelete="CASCADE"), nullable=False)
     step = Column(Text, nullable=False)
     expected_result = Column(Text, nullable=False)
     screenshot = Column(String(1024), nullable=True)
