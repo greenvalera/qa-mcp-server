@@ -563,6 +563,7 @@ async def qa_get_checklists(
                 "url": checklist.url,
                 "confluence_page_id": checklist.confluence_page_id,
                 "section_id": checklist.section_id,
+                "subcategory": checklist.subcategory,
                 "testcases_count": len(checklist.testcases) if checklist.testcases else 0,
                 "configs_count": len(checklist.configs) if checklist.configs else 0,
                 "updated_at": checklist.updated_at.isoformat() if checklist.updated_at else None

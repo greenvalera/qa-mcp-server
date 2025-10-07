@@ -12,6 +12,8 @@ from typing import Any, Dict, List, Optional
 from fastmcp import FastMCP, Context
 
 from .config import settings
+from .data.qa_repository import QARepository
+from .models.qa_models import QASection, Checklist, TestCase, Config
 from .mcp_tools import (
     qa_search_documents,
     qa_search_testcases,
@@ -37,6 +39,9 @@ logger = logging.getLogger(__name__)
 
 # Initialize FastMCP server
 mcp = FastMCP("qa-testcases")
+
+# Initialize repository
+qa_repo = QARepository()
 
 
 @mcp.tool()
@@ -85,48 +90,9 @@ async def qa_get_checklists(
         if ctx:
             await ctx.info(f"Getting checklists for section_id={section_id}")
         
-        # Validate parameters
-        if limit < 1 or limit > 200:
-            return {
-                "success": False,
-                "error": "limit must be between 1 and 200"
-            }
-        
-        if offset < 0:
-            return {
-                "success": False,
-                "error": "offset must be >= 0"
-            }
-        
-        checklists, total = qa_repo.get_checklists(
-            section_id=section_id,
-            limit=limit,
-            offset=offset
-        )
-        
-        formatted_checklists = []
-        for checklist in checklists:
-            checklist_data = {
-                "id": checklist.id,
-                "title": checklist.title,
-                "description": checklist.description or "",
-                "url": checklist.url,
-                "confluence_page_id": checklist.confluence_page_id,
-                "section_id": checklist.section_id,
-                "testcases_count": len(checklist.testcases) if checklist.testcases else 0,
-                "configs_count": len(checklist.configs) if checklist.configs else 0,
-                "updated_at": checklist.updated_at.isoformat() if checklist.updated_at else None
-            }
-            formatted_checklists.append(checklist_data)
-        
-        return {
-            "success": True,
-            "checklists": formatted_checklists,
-            "total": total,
-            "limit": limit,
-            "offset": offset,
-            "section_id": section_id
-        }
+        # Використовуємо функцію з mcp_tools.py
+        result = await qa_get_checklists(section_id=section_id, limit=limit, offset=offset)
+        return result
         
     except Exception as e:
         logger.error(f"Get checklists failed: {str(e)}")

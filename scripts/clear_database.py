@@ -63,9 +63,10 @@ def clear_database():
         qa_repo.close()
 
 @click.command()
-def main():
+@click.option('--force', is_flag=True, help='Force clear without confirmation')
+def main(force):
     """Очищає всі дані з таблиць чеклістів та тесткейсів."""
-    if click.confirm("⚠️ Ви впевнені, що хочете видалити ВСІ дані з бази? Цю дію неможливо скасувати!"):
+    if force or click.confirm("⚠️ Ви впевнені, що хочете видалити ВСІ дані з бази? Цю дію неможливо скасувати!"):
         clear_database()
     else:
         click.echo("❌ Операція скасована")
