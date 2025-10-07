@@ -202,6 +202,17 @@ class RealConfluenceAPI:
                         page['version']['when'].replace('Z', '+00:00')
                     )
         
+        # Get parent information from ancestors
+        parent_info = {}
+        if 'ancestors' in page and page['ancestors']:
+            # Last ancestor is the direct parent
+            direct_parent = page['ancestors'][-1]
+            parent_info = {
+                'id': direct_parent.get('id'),
+                'title': direct_parent.get('title', ''),
+                'type': direct_parent.get('type', 'page')
+            }
+        
         return {
             "id": str(page['id']),
             "title": page.get('title', 'Untitled'),
@@ -209,6 +220,7 @@ class RealConfluenceAPI:
             "url": page_url,
             "labels": labels,
             "version": version_number,
+            "parent": parent_info,
             "updated": updated_time,
             "content": content
         }
@@ -238,7 +250,7 @@ class RealConfluenceAPI:
         try:
             page = self.confluence.get_page_by_id(
                 page_id,
-                expand='body.storage,version,metadata.labels,space'
+                expand='body.storage,version,metadata.labels,space,ancestors'
             )
             return self._extract_page_data(page)
         except Exception as e:
