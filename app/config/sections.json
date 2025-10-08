@@ -1,0 +1,25 @@
+{
+  "default_sections": [
+    {
+      "confluence_page_id": "43624449",
+      "title": "Checklist WEB",
+      "description": "Web application testing checklists",
+      "url": "https://confluence.togethernetworks.com/spaces/QMT/pages/43624449/Checklist+WEB",
+      "space_key": "QMT"
+    },
+    {
+      "confluence_page_id": "117706559",
+      "title": "Checklist MOB",
+      "description": "Mobile application testing checklists",
+      "url": "https://confluence.togethernetworks.com/spaces/QMT/pages/117706559/Checklist+MOB",
+      "space_key": "QMT"
+    },
+    {
+      "confluence_page_id": "340830206",
+      "title": "Payment Page",
+      "description": "Payment system testing checklists",
+      "url": "https://confluence.togethernetworks.com/spaces/QMT/pages/340830206/Payment+Page",
+      "space_key": "QMT"
+    }
+  ]
+}

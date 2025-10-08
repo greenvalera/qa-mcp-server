@@ -24,6 +24,62 @@ class QARepository:
     def create_tables(self):
         """Створює таблиці якщо їх немає."""
         Base.metadata.create_all(self.engine)
+        # Ініціалізуємо секції після створення таблиць
+        self.initialize_default_sections()
+    
+    def initialize_default_sections(self):
+        """Ініціалізує базові секції якщо їх немає."""
+        import logging
+        import json
+        import os
+        logger = logging.getLogger(__name__)
+        
+        session = self.get_session()
+        try:
+            # Перевіряємо, чи є вже секції
+            existing_sections = session.query(QASection).count()
+            logger.info(f"🔍 Перевірка секцій: знайдено {existing_sections} секцій")
+            
+            if existing_sections > 0:
+                logger.info("✅ Секції вже існують, пропускаємо ініціалізацію")
+                return  # Секції вже існують
+            
+            logger.info("🔧 Створюємо базові секції...")
+            
+            # Читаємо дані секцій з JSON файлу
+            config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'sections.json')
+            try:
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config_data = json.load(f)
+                    sections_data = config_data['default_sections']
+                logger.info(f"📄 Завантажено конфігурацію секцій з {config_path}")
+            except FileNotFoundError:
+                logger.error(f"❌ Файл конфігурації не знайдено: {config_path}")
+                raise
+            except json.JSONDecodeError as e:
+                logger.error(f"❌ Помилка парсингу JSON: {str(e)}")
+                raise
+            
+            for section_data in sections_data:
+                logger.info(f"➕ Створюємо секцію: {section_data['title']}")
+                section = QASection(
+                    confluence_page_id=section_data["confluence_page_id"],
+                    title=section_data["title"],
+                    description=section_data["description"],
+                    url=section_data["url"],
+                    space_key=section_data["space_key"]
+                )
+                session.add(section)
+            
+            session.commit()
+            logger.info("✅ Базові секції успішно створені")
+            
+        except Exception as e:
+            session.rollback()
+            logger.error(f"❌ Помилка при створенні секцій: {str(e)}")
+            raise
+        finally:
+            session.close()
     
     def get_session(self) -> Session:
         """Повертає сесію БД."""

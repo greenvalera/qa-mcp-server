@@ -562,7 +562,7 @@ async def qa_get_checklists(
                 "description": checklist.description or "",
                 "url": checklist.url,
                 "confluence_page_id": checklist.confluence_page_id,
-                "section_id": checklist.section_id,
+                "section": checklist.section.title if checklist.section else None,
                 "subcategory": checklist.subcategory,
                 "testcases_count": len(checklist.testcases) if checklist.testcases else 0,
                 "configs_count": len(checklist.configs) if checklist.configs else 0,
@@ -576,7 +576,7 @@ async def qa_get_checklists(
             "total": total,
             "limit": limit,
             "offset": offset,
-            "section_id": section_id
+            "filtered_by_section_id": section_id
         }
         
     except Exception as e:

@@ -165,6 +165,7 @@ class UnifiedConfluenceLoader:
             self.html_parser = EnhancedConfluenceTableParser()  # Додаємо HTML парсер
             self._existing_checklists = set()
             self._load_existing_checklists()
+            self._sections_config = self._load_sections_config()
         
         if self.load_vector:
             self.vector_repo = VectorDBRepository()
@@ -187,6 +188,26 @@ class UnifiedConfluenceLoader:
             session.close()
         except Exception as e:
             click.echo(f"⚠️ Не вдалося завантажити існуючі чекліст: {e}")
+    
+    def _load_sections_config(self) -> Dict[str, Any]:
+        """Завантажує конфігурацію секцій з JSON файлу."""
+        import json
+        try:
+            config_path = os.path.join(os.path.dirname(__file__), '..', '..', 'app', 'config', 'sections.json')
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config_data = json.load(f)
+                sections = config_data.get('default_sections', [])
+                # Створюємо мапу confluence_page_id -> section_data
+                sections_map = {section['confluence_page_id']: section for section in sections}
+                click.echo(f"📄 Завантажено конфігурацію {len(sections)} секцій")
+                return sections_map
+        except Exception as e:
+            click.echo(f"⚠️ Не вдалося завантажити конфігурацію секцій: {e}")
+            return {}
+    
+    def get_section_ids_from_config(self) -> List[str]:
+        """Повертає список ID секцій з конфігурації."""
+        return list(self._sections_config.keys()) if hasattr(self, '_sections_config') else []
     
     async def load_data(
         self,
@@ -389,19 +410,8 @@ class UnifiedConfluenceLoader:
             # Create checklist in DB
             session = self.qa_repo.get_session()
             try:
-                # Find or create section (simplified - use first available section)
-                section = session.query(QASection).first()
-                if not section:
-                    # Create default section
-                    section = QASection(
-                        confluence_page_id="default",
-                        title="Default Section",
-                        description="Default section for imported checklists",
-                        url="https://confluence.togethernetworks.com/pages/default",
-                        space_key=page_content.get('space', 'QMT')
-                    )
-                    session.add(section)
-                    session.flush()
+                # Визначаємо секцію на основі батьківської сторінки
+                section = self._find_or_create_section(session, page_content, title)
                 
                 # Create checklist
                 content_hash = hashlib.md5(content.encode()).hexdigest()
@@ -636,6 +646,68 @@ class UnifiedConfluenceLoader:
         encoded_title = urllib.parse.quote(title_with_plus, safe='+')
         return f"https://confluence.togethernetworks.com/spaces/{space_key}/pages/{page_id}/{encoded_title}"
     
+    def _find_or_create_section(self, session, page_content: Dict[str, Any], title: str) -> QASection:
+        """
+        Знаходить або створює секцію на основі батьківської сторінки та конфігурації.
+        """
+        try:
+            # Отримуємо інформацію про батьківську сторінку
+            parent_info = page_content.get('parent', {})
+            parent_id = parent_info.get('id') if parent_info else None
+            
+            # Якщо є батьківський ID, перевіряємо чи він є в конфігурації секцій
+            if parent_id and parent_id in self._sections_config:
+                section_config = self._sections_config[parent_id]
+                
+                # Шукаємо секцію в БД за confluence_page_id
+                section = session.query(QASection).filter_by(
+                    confluence_page_id=section_config['confluence_page_id']
+                ).first()
+                
+                if section:
+                    click.echo(f"  📁 Використано секцію: {section.title} (з конфігурації)")
+                    return section
+                
+                # Якщо секції немає в БД, створюємо її з конфігурації
+                click.echo(f"  ➕ Створюємо секцію з конфігурації: {section_config['title']}")
+                section = QASection(
+                    confluence_page_id=section_config['confluence_page_id'],
+                    title=section_config['title'],
+                    description=section_config['description'],
+                    url=section_config['url'],
+                    space_key=section_config['space_key']
+                )
+                session.add(section)
+                session.flush()
+                return section
+            
+            # Якщо батьківський ID не в конфігурації, шукаємо секцію по назві батька
+            if parent_info:
+                parent_title = parent_info.get('title', '')
+                
+                # Шукаємо секцію за назвою
+                for section_config in self._sections_config.values():
+                    if section_config['title'] in parent_title or parent_title in section_config['title']:
+                        section = session.query(QASection).filter_by(
+                            confluence_page_id=section_config['confluence_page_id']
+                        ).first()
+                        
+                        if section:
+                            click.echo(f"  📁 Використано секцію: {section.title} (за назвою)")
+                            return section
+            
+            # Якщо не знайшли за конфігурацією, використовуємо першу доступну секцію
+            section = session.query(QASection).first()
+            if section:
+                click.echo(f"  📁 Використано першу доступну секцію: {section.title}")
+                return section
+            
+            # Якщо секцій взагалі немає, повертаємо None (викличе помилку)
+            raise Exception("Немає доступних секцій в БД. Виконайте ініціалізацію БД.")
+            
+        except Exception as e:
+            raise Exception(f"Помилка визначення секції: {str(e)}")
+    
     def _determine_subcategory(self, page_content: Dict[str, Any], title: str) -> Optional[str]:
         """
         Визначає subcategory на основі ієрархії сторінок Confluence.
@@ -710,6 +782,13 @@ def main(page_ids, spaces, labels, since, limit, use_config, use_real_api, test_
     space_keys = spaces.split(',') if spaces else None
     label_list = labels.split(',') if labels else None
     
+    # Initialize loader early to access config
+    loader = UnifiedConfluenceLoader(
+        use_mock=not use_real_api,
+        load_mysql=load_mysql,
+        load_vector=load_vector
+    )
+    
     # Determine page IDs to load
     pages_to_load = None
     if use_config:
@@ -719,6 +798,14 @@ def main(page_ids, spaces, labels, since, limit, use_config, use_real_api, test_
         pages_to_load = settings.confluence_root_pages.split(',')
     elif page_ids:
         pages_to_load = page_ids.split(',')
+    else:
+        # Якщо не передано page_ids і не використовується --use-config,
+        # використовуємо ID з sections.json
+        if load_mysql:
+            config_ids = loader.get_section_ids_from_config()
+            if config_ids:
+                click.echo(f"📄 Використано ID секцій з конфігурації: {', '.join(config_ids)}")
+                pages_to_load = config_ids
     
     # Auto-configure for real API if no specific parameters provided
     if use_real_api:
@@ -735,13 +822,6 @@ def main(page_ids, spaces, labels, since, limit, use_config, use_real_api, test_
         # Show current Confluence configuration
         click.echo(f"Confluence URL: {settings.confluence_base_url}")
         click.echo(f"Auth token: {'***set***' if settings.confluence_auth_token else 'NOT SET'}")
-    
-    # Initialize loader
-    loader = UnifiedConfluenceLoader(
-        use_mock=not use_real_api,
-        load_mysql=load_mysql,
-        load_vector=load_vector
-    )
     
     # Test connection if requested
     if test_connection:
