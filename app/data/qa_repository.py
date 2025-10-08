@@ -528,8 +528,8 @@ class QARepository:
             session.close()
     
     def semantic_search_testcases(
-        self, 
-        query: str, 
+        self,
+        query: str,
         limit: int = 20,
         min_similarity: float = 0.5,
         section_id: Optional[int] = None,
@@ -598,3 +598,67 @@ class QARepository:
             return []
         finally:
             session.close()
+
+    # Feature/document helpers
+
+    def list_functionalities(self, limit: int = 100, offset: int = 0) -> Tuple[List[str], int]:
+        """Повертає унікальні значення functionality з тесткейсів."""
+        session = self.get_session()
+        try:
+            query = session.query(TestCase.functionality).filter(
+                TestCase.functionality.isnot(None),
+                TestCase.functionality != ''
+            ).distinct()
+            total = query.count()
+            if offset:
+                query = query.offset(offset)
+            if limit:
+                query = query.limit(limit)
+            functionalities = [row[0] for row in query.all()]
+            return functionalities, total
+        finally:
+            session.close()
+
+    def resolve_functionality_by_id(self, feature_id: Optional[int]) -> str:
+        """Повертає назву functionality за порядковим індексом."""
+        if feature_id is None:
+            raise ValueError("feature_id is required when feature_name is not provided")
+
+        session = self.get_session()
+        try:
+            query = session.query(TestCase.functionality).filter(
+                TestCase.functionality.isnot(None),
+                TestCase.functionality != ''
+            ).distinct().order_by(TestCase.functionality)
+            functionalities = [row[0] for row in query.all()]
+            if feature_id <= 0 or feature_id > len(functionalities):
+                raise ValueError(f"Invalid feature_id: {feature_id}")
+            return functionalities[feature_id - 1]
+        finally:
+            session.close()
+
+    def list_checklists_for_functionality(
+        self,
+        functionality: str,
+        limit: Optional[int] = None,
+        offset: int = 0,
+    ) -> Tuple[List[Checklist], int]:
+        """Повертає чеклісти, що містять задану functionality."""
+        session = self.get_session()
+        try:
+            query = session.query(Checklist).join(TestCase).filter(
+                TestCase.functionality == functionality
+            ).distinct()
+            total = query.count()
+            if offset:
+                query = query.offset(offset)
+            if limit:
+                query = query.limit(limit)
+            return query.all(), total
+        finally:
+            session.close()
+
+    def list_documents_for_functionality(self, functionality: str) -> List[Checklist]:
+        """Повертає всі чеклісти для заданої functionality без пагінації."""
+        checklists, _ = self.list_checklists_for_functionality(functionality, limit=None, offset=0)
+        return checklists
