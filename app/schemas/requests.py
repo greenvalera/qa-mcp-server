@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import ClassVar, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, FieldValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ..models.qa_models import Priority, TestGroup
 
@@ -21,7 +21,7 @@ class PaginationParams(StrippingModel):
     limit: int = Field(default=100)
     offset: int = Field(default=0)
 
-    limit_max: int = 500
+    limit_max: ClassVar[int] = 500
 
     @field_validator("limit")
     @classmethod
@@ -45,7 +45,7 @@ class SectionsQuery(PaginationParams):
 class ChecklistsQuery(PaginationParams):
     """Parameters for listing checklists."""
 
-    limit_max = 200
+    limit_max: ClassVar[int] = 200
     section_id: Optional[int] = Field(default=None, ge=1)
 
 
@@ -152,13 +152,13 @@ class TestcaseSemanticSearchQuery(TestcaseTextSearchQuery):
 class ConfigsQuery(PaginationParams):
     """Parameters for listing configs."""
 
-    limit_max = 200
+    limit_max: ClassVar[int] = 200
 
 
 class FeaturesQuery(PaginationParams):
     """Parameters for listing features (functionalities)."""
 
-    limit_max = 500
+    limit_max: ClassVar[int] = 500
     with_documents: bool = True
 
 
@@ -186,7 +186,7 @@ class FeatureDocumentsQuery(StrippingModel):
 
     @field_validator("feature_id")
     @classmethod
-    def validate_feature_id(cls, value: Optional[int], info: FieldValidationInfo):
+    def validate_feature_id(cls, value: Optional[int], info):
         feature_name = info.data.get("feature_name")
         if (value is None or value <= 0) and not feature_name:
             raise ValueError("Either feature_name or feature_id is required")

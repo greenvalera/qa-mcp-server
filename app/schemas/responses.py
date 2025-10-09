@@ -42,6 +42,12 @@ class ChecklistDTO(BaseModel):
     configs_count: int = 0
     testcases_count: int = 0
 
+    @field_validator("id", mode="before")
+    @classmethod
+    def convert_id_to_str(cls, value) -> str:
+        """Convert ID to string if it's not already."""
+        return str(value) if value is not None else ""
+
     @field_validator("description", mode="before")
     @classmethod
     def empty_description(cls, value: Optional[str]) -> str:
@@ -68,6 +74,12 @@ class TestCaseDTO(BaseModel):
     section_title: Optional[str] = None
     config_name: Optional[str] = None
     similarity: Optional[float] = None
+
+    @field_validator("checklist_id", mode="before")
+    @classmethod
+    def convert_checklist_id_to_str(cls, value) -> str:
+        """Convert checklist_id to string if it's not already."""
+        return str(value) if value is not None else ""
 
     @field_validator("priority", mode="before")
     @classmethod

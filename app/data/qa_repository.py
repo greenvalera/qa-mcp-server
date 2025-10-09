@@ -188,7 +188,8 @@ class QARepository:
         session = self.get_session()
         try:
             query = session.query(TestCase).options(
-                joinedload(TestCase.checklist).joinedload(Checklist.section)
+                joinedload(TestCase.checklist).joinedload(Checklist.section),
+                joinedload(TestCase.config)
             )
             
             if checklist_id:
@@ -231,7 +232,8 @@ class QARepository:
         session = self.get_session()
         try:
             q = session.query(TestCase).join(Checklist).options(
-                joinedload(TestCase.checklist).joinedload(Checklist.section)
+                joinedload(TestCase.checklist).joinedload(Checklist.section),
+                joinedload(TestCase.config)
             )
             
             # Текстовий пошук
@@ -265,7 +267,10 @@ class QARepository:
         """Отримує тесткейси які використовують конкретний конфіг."""
         session = self.get_session()
         try:
-            return session.query(TestCase).filter_by(config_id=config_id).limit(limit).all()
+            return session.query(TestCase).options(
+                joinedload(TestCase.checklist).joinedload(Checklist.section),
+                joinedload(TestCase.config)
+            ).filter_by(config_id=config_id).limit(limit).all()
         finally:
             session.close()
     
@@ -275,7 +280,10 @@ class QARepository:
         """Отримує список конфігів."""
         session = self.get_session()
         try:
-            query = session.query(Config)
+            query = session.query(Config).options(
+                joinedload(Config.testcases),
+                joinedload(Config.checklists)
+            )
             total = query.count()
             configs = query.offset(offset).limit(limit).all()
             return configs, total
