@@ -77,28 +77,35 @@ class TestQASearchTestcases:
     
     @pytest.mark.asyncio
     @pytest.mark.unit
-    async def test_successful_semantic_search(self, mock_qa_repo, sample_search_results):
+    async def test_successful_semantic_search(self):
         """Test successful semantic search."""
-        mock_qa_repo.semantic_search_testcases.return_value = [
-            {
-                'testcase': Mock(
-                    id=1,
-                    step="Test step",
-                    expected_result="Expected result",
-                    priority=Mock(value="HIGH"),
-                    test_group=Mock(value="GENERAL"),
-                    functionality="Search",
-                    checklist_id=1,
-                    screenshot=None,
-                    qa_auto_coverage=None
-                ),
-                'checklist_title': 'Test Checklist',
-                'config_name': None,
-                'similarity': 0.85
-            }
-        ]
+        mock_service = Mock()
+        mock_response = Mock()
+        mock_response.model_dump.return_value = {
+            "success": True,
+            "query": "test query",
+            "results": [
+                {
+                    "id": 1,
+                    "step": "Test step",
+                    "expected_result": "Expected result",
+                    "priority": "HIGH",
+                    "test_group": "GENERAL",
+                    "functionality": "Search",
+                    "similarity": 0.85,
+                    "checklist_title": "Test Checklist",
+                    "section_title": "Test Section",
+                    "config_name": None
+                }
+            ],
+            "count": 1,
+            "search_type": "semantic",
+            "min_similarity": 0.5,
+            "filters": {}
+        }
+        mock_service.search_testcases_semantic = AsyncMock(return_value=mock_response)
         
-        with patch('app.mcp_tools.qa_repo', mock_qa_repo):
+        with patch('app.mcp_tools._get_service', return_value=mock_service):
             result = await qa_search_testcases("test query", limit=10)
             
             assert result["success"] is True
@@ -131,12 +138,12 @@ class TestQASearchTestcases:
         # Test invalid test_group
         result = await qa_search_testcases("test", test_group="INVALID")
         assert result["success"] is False
-        assert "GENERAL or CUSTOM" in result["error"]
+        assert "is not a valid TestGroup" in result["error"]
         
         # Test invalid priority
         result = await qa_search_testcases("test", priority="INVALID")
         assert result["success"] is False
-        assert "LOWEST, LOW, MEDIUM, HIGH, HIGHEST, CRITICAL" in result["error"]
+        assert "is not a valid Priority" in result["error"]
     
     @pytest.mark.asyncio
     @pytest.mark.unit
@@ -156,25 +163,33 @@ class TestQASearchTestcasesText:
     
     @pytest.mark.asyncio
     @pytest.mark.unit
-    async def test_successful_text_search(self, mock_qa_repo, sample_qa_data):
+    async def test_successful_text_search(self):
         """Test successful text search."""
-        mock_testcase = Mock()
-        mock_testcase.id = 1
-        mock_testcase.step = "Test step"
-        mock_testcase.expected_result = "Expected result"
-        mock_testcase.screenshot = None
-        mock_testcase.priority = Mock(value="HIGH")
-        mock_testcase.test_group = Mock(value="GENERAL")
-        mock_testcase.functionality = "Search"
-        mock_testcase.checklist_id = 1
-        mock_testcase.checklist = Mock()
-        mock_testcase.checklist.title = "Test Checklist"
-        mock_testcase.checklist.section = Mock()
-        mock_testcase.checklist.section.title = "Test Section"
+        mock_service = Mock()
+        mock_response = Mock()
+        mock_response.model_dump.return_value = {
+            "success": True,
+            "query": "test query",
+            "testcases": [
+                {
+                    "id": 1,
+                    "step": "Test step",
+                    "expected_result": "Expected result",
+                    "priority": "HIGH",
+                    "test_group": "GENERAL",
+                    "functionality": "Search",
+                    "checklist_title": "Test Checklist",
+                    "section_title": "Test Section",
+                    "config_name": None
+                }
+            ],
+            "count": 1,
+            "search_type": "text",
+            "filters": {}
+        }
+        mock_service.search_testcases_text = AsyncMock(return_value=mock_response)
         
-        mock_qa_repo.search_testcases.return_value = [mock_testcase]
-        
-        with patch('app.mcp_tools.qa_repo', mock_qa_repo):
+        with patch('app.mcp_tools._get_service', return_value=mock_service):
             result = await qa_search_testcases_text("test query", limit=10)
             
             assert result["success"] is True
@@ -201,12 +216,12 @@ class TestQASearchTestcasesText:
         # Test invalid test_group
         result = await qa_search_testcases_text("test", test_group="INVALID")
         assert result["success"] is False
-        assert "GENERAL or CUSTOM" in result["error"]
+        assert "is not a valid TestGroup" in result["error"]
         
         # Test invalid priority
         result = await qa_search_testcases_text("test", priority="INVALID")
         assert result["success"] is False
-        assert "LOW, MEDIUM, HIGH, or CRITICAL" in result["error"]
+        assert "is not a valid Priority" in result["error"]
 
 
 class TestQAListFeatures:
@@ -214,11 +229,28 @@ class TestQAListFeatures:
     
     @pytest.mark.asyncio
     @pytest.mark.unit
-    async def test_successful_list_features(self, mock_qa_repo, test_session, sample_qa_data):
+    async def test_successful_list_features(self):
         """Test successful features listing."""
-        mock_qa_repo.get_session.return_value = test_session
+        mock_service = Mock()
+        mock_response = Mock()
+        mock_response.model_dump.return_value = {
+            "success": True,
+            "features": [
+                {
+                    "id": 1,
+                    "name": "Search",
+                    "description": "Functionality: Search",
+                    "documents": ["Test Document"]
+                }
+            ],
+            "count": 1,
+            "total": 1,
+            "limit": 10,
+            "offset": 0
+        }
+        mock_service.list_features = AsyncMock(return_value=mock_response)
         
-        with patch('app.mcp_tools.qa_repo', mock_qa_repo):
+        with patch('app.mcp_tools._get_service', return_value=mock_service):
             result = await qa_list_features(limit=10, with_documents=True)
             
             assert result["success"] is True
@@ -238,7 +270,7 @@ class TestQAListFeatures:
         # Test invalid offset
         result = await qa_list_features(offset=-1)
         assert result["success"] is False
-        assert "non-negative" in result["error"]
+        assert ">= 0" in result["error"]
 
 
 class TestQADocsByFeature:
@@ -246,11 +278,22 @@ class TestQADocsByFeature:
     
     @pytest.mark.asyncio
     @pytest.mark.unit
-    async def test_successful_docs_by_feature(self, mock_qa_repo, test_session, sample_qa_data):
+    async def test_successful_docs_by_feature(self):
         """Test successful docs by feature."""
-        mock_qa_repo.get_session.return_value = test_session
+        mock_service = Mock()
+        mock_response = Mock()
+        mock_response.model_dump.return_value = {
+            "success": True,
+            "feature_name": "Search",
+            "documents": [],
+            "count": 0,
+            "total": 0,
+            "limit": 10,
+            "offset": 0
+        }
+        mock_service.documents_by_feature = AsyncMock(return_value=mock_response)
         
-        with patch('app.mcp_tools.qa_repo', mock_qa_repo):
+        with patch('app.mcp_tools._get_service', return_value=mock_service):
             result = await qa_docs_by_feature(feature_name="Search", limit=10)
             
             assert result["success"] is True
@@ -305,6 +348,12 @@ class TestQAHealth:
         mock_session = Mock()
         mock_session.execute.side_effect = Exception("Connection failed")
         mock_qa_repo.get_session.return_value = mock_session
+        mock_qa_repo.get_qa_statistics.return_value = {
+            "sections_count": 0,
+            "checklists_count": 0,
+            "testcases_count": 0,
+            "configs_count": 0
+        }
         
         with patch('app.mcp_tools.qa_repo', mock_qa_repo), \
              patch('sqlalchemy.text'):
@@ -364,7 +413,8 @@ class TestQAGetChecklists:
             assert result["success"] is True
             assert result["total"] == 1
             assert len(result["checklists"]) == 1
-            assert result["checklists"][0]["id"] == 1
+            # ID is converted to string in the response
+            assert result["checklists"][0]["id"] == "1"
             assert result["checklists"][0]["title"] == "Test Checklist"
     
     @pytest.mark.asyncio
@@ -417,12 +467,12 @@ class TestQAGetTestcases:
         # Test invalid test_group
         result = await qa_get_testcases(test_group="INVALID")
         assert result["success"] is False
-        assert "GENERAL or CUSTOM" in result["error"]
+        assert "is not a valid TestGroup" in result["error"]
         
         # Test invalid priority
         result = await qa_get_testcases(priority="INVALID")
         assert result["success"] is False
-        assert "LOW, MEDIUM, HIGH, or CRITICAL" in result["error"]
+        assert "is not a valid Priority" in result["error"]
 
 
 class TestQAGetConfigs:
